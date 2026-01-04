@@ -1,1 +1,4 @@
 ecommerce_project_guide.md
+vendor/
+config/env.php
+storage/uploads/
