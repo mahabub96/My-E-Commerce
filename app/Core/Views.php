@@ -1,4 +1,5 @@
-<?php 
+<?php
+
 namespace App\Core;
 
 class Views
@@ -7,18 +8,17 @@ class Views
 
     protected static function basePath(): string
     {
-        if(self::$viewsPath !== null){
+        if (self::$viewsPath !== null) {
             return self::$viewsPath;
         }
-    
 
-    $path = realpath(__DIR__ . '/../../resources/views');
-    if($path === false){
-        throw new \Exception('Views directory not found: resources/views');
-    }
+        $path = realpath(__DIR__ . '/../../resources/views');
+        if ($path === false) {
+            throw new \Exception('Views directory not found: resources/views');
+        }
 
-    self::$viewsPath = $path;
-    return self::$viewsPath;
+        self::$viewsPath = $path;
+        return self::$viewsPath;
     }
 
     /**
@@ -72,19 +72,17 @@ class Views
         return $final;
     }
 
-
-
-
     /**
      * Include a partial view directly (useful inside other views)
      */
-    public static function partial (string $partial, array $data = []):void{
+    public static function partial(string $partial, array $data = []): void
+    {
         $viewsPath = self::basePath();
-        $file = $viewsPath.'/'.str_replace('.','/', ltrim($partial,'/')).'.php';
-        if(!file_exists($file)){
+        $file = $viewsPath . '/' . str_replace('.', '/', ltrim($partial, '/')) . '.php';
+        if (!file_exists($file)) {
             throw new \Exception("Partial not found: {$file}");
         }
-        extract($data,EXTR_SKIP);
+        extract($data, EXTR_SKIP);
         include $file;
     }
 }

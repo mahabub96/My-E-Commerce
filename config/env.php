@@ -1,14 +1,16 @@
-<?php 
+<?php
+
+// Environment configuration for the E-Commerce project.
+// Values here are defaults for local development. Override in deployment as needed.
 
 return [
-    //APP
-    'APP_NAME' => 'DEMO E-Commerce',
+    // App
+    'APP_NAME' => 'Demo E-Commerce',
     'APP_ENV' => 'local',
     'APP_DEBUG' => true,
     'APP_URL' => 'http://localhost:8000',
 
-
-    //Database
+    // Database
     'DB_CONNECTION' => 'mysql',
     'DB_HOST' => '127.0.0.1',
     'DB_PORT' => '3306',
@@ -16,21 +18,18 @@ return [
     'DB_USER' => 'root',
     'DB_PASS' => '',
 
-    //Mail / Notifications
-
+    // Mail / Notifications (placeholders)
     'MAIL_HOST' => '',
     'MAIL_PORT' => '',
-    'MAIL_USERNMAE' => '',
+    'MAIL_USERNAME' => '',
     'MAIL_PASSWORD' => '',
 
-    //Payment Keys (for real keys)
-
+    // Payment keys (add real keys in production)
     'STRIPE_PUBLIC_KEY' => '',
     'STRIPE_SECRET_KEY' => '',
     'PAYPAL_CLIENT_ID' => '',
     'PAYPAL_SECRET' => '',
 
-    //OTHERS
+    // Security & other
     'APP_KEY' => '',
-
 ];

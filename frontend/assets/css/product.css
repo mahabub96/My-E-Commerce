@@ -1,0 +1,216 @@
+/* Product detail layout built with flex and base tokens */
+.product-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xl);
+}
+
+.product-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  background: var(--bg-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-xl);
+}
+
+.product-media {
+  display: flex;
+  gap: var(--space-lg);
+  flex-direction: column;
+  align-items: center;
+}
+
+.product-media__main {
+  width: 100%;
+  max-width: 480px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-light);
+  padding: var(--space-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.product-media__thumbs {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.product-media__thumb {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-md);
+  background: var(--bg-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e3e7ed;
+  cursor: pointer;
+}
+
+.product-media__thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.product-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.product-info__title {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, var(--font-size-4xl));
+  font-weight: 700;
+  color: var(--color-heading);
+}
+
+.product-info__price {
+  font-size: var(--font-size-2xl);
+  color: var(--color-primary);
+  font-weight: 700;
+  margin: 0;
+}
+
+.product-info__meta {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+}
+
+.product-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  border: 1px solid #e3e7ed;
+  border-radius: var(--radius-full);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-white);
+}
+
+.product-qty button {
+  background: none;
+  border: none;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-body);
+  cursor: pointer;
+}
+
+.product-qty input {
+  width: 48px;
+  border: none;
+  text-align: center;
+  background: transparent;
+  font-size: var(--font-size-md);
+}
+
+.product-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.product-tabs {
+  background: var(--bg-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-lg);
+}
+
+.tab-list {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.tab-button {
+  border: 1px solid #e3e7ed;
+  background: var(--bg-white);
+  border-radius: var(--radius-full);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--color-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tab-button.is-active {
+  background: var(--color-primary);
+  color: var(--bg-white);
+  border-color: var(--color-primary);
+}
+
+.tab-panel {
+  display: none;
+  color: var(--color-muted);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+}
+
+.tab-panel.is-active {
+  display: block;
+}
+
+.related-products {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  margin-top: var(--space-2xl);
+}
+
+.related-products .shop-grid {
+  gap: var(--space-lg);
+  align-items: flex-start; /* ensure rows don't overlap when items have varied height */
+}
+
+.related-products .product-card {
+  margin-bottom: var(--space-lg); /* extra vertical spacing for older browsers */
+} 
+
+.related-products .product-card {
+  flex: 1 1 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 768px) {
+  .related-products .product-card {
+    flex: 1 1 calc(50% - var(--space-lg));
+    max-width: calc(50% - var(--space-lg));
+  }
+}
+
+@media (min-width: 1200px) {
+  .related-products .product-card {
+    flex: 1 1 calc(25% - var(--space-lg));
+    max-width: calc(25% - var(--space-lg));
+  }
+}
+
+@media (min-width: 992px) {
+  .product-summary {
+    flex-direction: row;
+  }
+
+  .product-media {
+    flex: 1;
+  }
+
+  .product-info {
+    flex: 1;
+  }
+}
