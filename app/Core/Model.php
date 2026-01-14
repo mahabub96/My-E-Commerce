@@ -126,4 +126,36 @@ abstract class Model
         $stmt = $this->query($sql, ['val' => $value]);
         return $stmt->fetchAll();
     }
+
+    /**
+     * Select function 
+     */
+
+    public function select(
+        string $columns = '*',
+        ?string $joins = null,
+        ?string $where = null,
+        array $params = [],
+        ?string $orderBy = null,
+        ?int $limit = null
+    ): array {
+        $sql = "SELECT {$columns} FROM `{$this->table}`";
+
+        if($joins){
+            $sql .= " {$joins}";
+        }
+        if($where){
+            $sql .= " WHERE {$where}";
+        }
+        if($orderBy){
+            $sql .= " ORDER BY {$orderBy}";
+        }
+        if($limit !== null){
+            $sql .= " LIMIT {$limit}";
+        }
+
+        $stmt = $this->query($sql, $params);
+
+        return $stmt->fetchAll();
+    }
 }
