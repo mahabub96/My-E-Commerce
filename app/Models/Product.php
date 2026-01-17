@@ -17,7 +17,7 @@ class Product extends Model
 
     public function getFeatured(int $limit = 8): array
     {
-        $limit = (int) $limit;
+        $limit = max(1, (int) $limit);
         $sql = "SELECT * FROM `{$this->table}` WHERE `featured` = 1 AND `status` = 'active' ORDER BY `created_at` DESC LIMIT {$limit}";
         $stmt = $this->query($sql);
         return $stmt->fetchAll();
@@ -32,5 +32,20 @@ class Product extends Model
     {
         $stmt = $this->query("SELECT * FROM `{$this->table}` WHERE `status` = 'active' ORDER BY `created_at` DESC");
         return $stmt->fetchAll();
+    }
+
+    public function createProduct(array $data): int
+    {
+        return $this->create($data);
+    }
+
+    public function updateProduct(int $id, array $data): bool
+    {
+        return $this->update($id, $data);
+    }
+
+    public function deleteProduct(int $id): bool
+    {
+        return $this->delete($id);
     }
 }
