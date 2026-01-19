@@ -1,0 +1,112 @@
+/* Admin area styling scoped under .admin-app to avoid bleeding into customer UI */
+.admin-app {
+  min-height: 100vh;
+  background: #f5f6fa;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.admin-topbar {
+  background: #fff;
+  border-bottom: 1px solid #e9ecef;
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+}
+
+.admin-topbar .navbar-brand {
+  font-weight: 700;
+  color: #1b2a4e;
+}
+
+.admin-main {
+  padding: 2rem 0;
+}
+
+.admin-card {
+  background: #fff;
+  border-radius: 1rem;
+  border: 1px solid #eef2f7;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.03);
+  padding: 1.5rem;
+}
+
+.admin-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.admin-table thead th {
+  font-weight: 700;
+  color: #1b2a4e;
+}
+
+.admin-table td {
+  color: #6c757d;
+  vertical-align: middle;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-sidebar {
+  background: #0b2545;
+  color: #fff;
+  min-height: 100vh;
+  padding: 1.5rem 1rem;
+}
+
+.admin-sidebar a {
+  color: #b8c2cc;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.75rem;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.admin-sidebar a.active,
+.admin-sidebar a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+@media (max-width: 991.98px) {
+  .admin-sidebar {
+    position: fixed;
+    left: -260px;
+    top: 0;
+    width: 240px;
+    transition: left 0.3s ease;
+    z-index: 1030;
+  }
+
+  .admin-sidebar.is-open {
+    left: 0;
+  }
+}
+
+.admin-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease;
+  z-index: 1025;
+}
+
+.admin-overlay.is-active {
+  opacity: 1;
+  visibility: visible;
+}
+
+body.admin-nav-open {
+  overflow: hidden;
+}
