@@ -25,6 +25,8 @@ class Views
      * Render a view and optionally wrap it in a layout.
      * View names may use dot notation like "shop.index" or path "shop/index".
      * If $layout is null the default layout is chosen based on view namespace (admin vs app).
+     * 
+     * Auto-escapes all variables by default. Use raw() helper to output unescaped content.
      */
     public static function render(string $view, array $data = [], $layout = null): string
     {
@@ -35,7 +37,9 @@ class Views
             throw new \Exception("View file not found: {$viewFile}");
         }
 
-        extract($data, EXTR_SKIP);
+        // Wrap data in escaping proxy
+        $escapedData = self::escapeData($data);
+        extract($escapedData, EXTR_SKIP);
 
         ob_start();
         include $viewFile;
@@ -73,7 +77,41 @@ class Views
     }
 
     /**
+     * Escape data for safe output in views
+     * Recursively escapes arrays and converts objects to strings
+     */
+    protected static function escapeData(mixed $data): mixed
+    {
+        if (is_array($data)) {
+            return array_map([self::class, 'escapeData'], $data);
+        }
+        
+        if (is_string($data)) {
+            return htmlspecialchars($data, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        
+        if (is_object($data)) {
+            return htmlspecialchars((string)$data, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        
+        // Numbers, booleans, null pass through
+        return $data;
+    }
+
+    /**
+     * Output raw unescaped content (use sparingly, only for trusted HTML)
+     * 
+     * @param mixed $value The value to output without escaping
+     * @return string The raw value
+     */
+    public static function raw(mixed $value): string
+    {
+        return (string)$value;
+    }
+
+    /**
      * Include a partial view directly (useful inside other views)
+     * Auto-escapes data by default
      */
     public static function partial(string $partial, array $data = []): void
     {
@@ -82,7 +120,10 @@ class Views
         if (!file_exists($file)) {
             throw new \Exception("Partial not found: {$file}");
         }
-        extract($data, EXTR_SKIP);
+        
+        // Escape data for partials too
+        $escapedData = self::escapeData($data);
+        extract($escapedData, EXTR_SKIP);
         include $file;
     }
 }

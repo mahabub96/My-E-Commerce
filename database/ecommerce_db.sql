@@ -3,13 +3,19 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
--- Drop tables if exist
+-- Drop tables if exist (include newly added tables)
 DROP TABLE IF EXISTS `order_items`;
 DROP TABLE IF EXISTS `orders`;
 DROP TABLE IF EXISTS `product_images`;
 DROP TABLE IF EXISTS `products`;
 DROP TABLE IF EXISTS `categories`;
 DROP TABLE IF EXISTS `users`;
+DROP TABLE IF EXISTS `payments`;
+DROP TABLE IF EXISTS `webhook_logs`;
+DROP TABLE IF EXISTS `job_queue`;
+DROP TABLE IF EXISTS `cart_items`;
+DROP TABLE IF EXISTS `password_resets`;
+DROP TABLE IF EXISTS `migrations`;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -21,10 +27,12 @@ CREATE TABLE `categories` (
   `description` TEXT NULL,
   `image` VARCHAR(255) NULL,
   `status` ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  INDEX `idx_categories_slug` (`slug`)
+  INDEX `idx_categories_slug` (`slug`),
+  INDEX `idx_category_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create products
@@ -40,11 +48,14 @@ CREATE TABLE `products` (
   `image` VARCHAR(255) NULL,
   `featured` TINYINT(1) NOT NULL DEFAULT 0,
   `status` ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_products_slug` (`slug`),
   INDEX `idx_products_category` (`category_id`),
+  INDEX `idx_product_status` (`status`),
+  INDEX `idx_product_featured` (`featured`),
   CONSTRAINT `fk_products_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -97,6 +108,8 @@ CREATE TABLE `orders` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_orders_user` (`user_id`),
+  INDEX `idx_order_status` (`order_status`),
+  INDEX `idx_payment_status` (`payment_status`),
   CONSTRAINT `fk_orders_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -115,6 +128,91 @@ CREATE TABLE `order_items` (
   INDEX `idx_order_items_product` (`product_id`),
   CONSTRAINT `fk_order_items_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_order_items_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create migrations table (tracking table used by MigrationManager)
+CREATE TABLE IF NOT EXISTS `migrations` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `migration` VARCHAR(255) NOT NULL UNIQUE,
+  `batch` INT NOT NULL,
+  `executed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_batch` (`batch`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create payments table
+CREATE TABLE `payments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `order_id` INT UNSIGNED NOT NULL,
+  `gateway` ENUM('stripe','paypal') NOT NULL,
+  `payment_id` VARCHAR(255) NOT NULL UNIQUE,
+  `amount` DECIMAL(10,2) NOT NULL,
+  `currency` VARCHAR(3) DEFAULT 'USD',
+  `status` VARCHAR(50) NOT NULL,
+  `metadata` JSON NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_order_id` (`order_id`),
+  INDEX `idx_payment_id` (`payment_id`),
+  INDEX `idx_status` (`status`),
+  CONSTRAINT `fk_payments_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create webhook_logs table
+CREATE TABLE `webhook_logs` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `gateway` VARCHAR(50) NOT NULL,
+  `event_type` VARCHAR(100) NOT NULL,
+  `webhook_id` VARCHAR(255) NULL,
+  `payload` TEXT NOT NULL,
+  `processed` TINYINT(1) DEFAULT 0,
+  `processed_at` TIMESTAMP NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_webhook_id` (`webhook_id`),
+  INDEX `idx_processed` (`processed`),
+  INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create job_queue table
+CREATE TABLE `job_queue` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `type` VARCHAR(100) NOT NULL,
+  `payload` JSON NOT NULL,
+  `status` ENUM('pending','processing','completed','failed') DEFAULT 'pending',
+  `attempts` INT DEFAULT 0,
+  `max_attempts` INT DEFAULT 3,
+  `error_message` TEXT NULL,
+  `scheduled_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `processed_at` TIMESTAMP NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_status` (`status`),
+  INDEX `idx_type` (`type`),
+  INDEX `idx_scheduled_at` (`scheduled_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create password_resets table
+CREATE TABLE `password_resets` (
+  `email` VARCHAR(191) NOT NULL PRIMARY KEY,
+  `token` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_token` (`token`),
+  INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create cart_items table
+CREATE TABLE `cart_items` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NULL,
+  `session_id` VARCHAR(255) NULL,
+  `product_id` INT UNSIGNED NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_user_id` (`user_id`),
+  INDEX `idx_session_id` (`session_id`),
+  INDEX `idx_product_id` (`product_id`),
+  CONSTRAINT `fk_cart_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_cart_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Dummy data

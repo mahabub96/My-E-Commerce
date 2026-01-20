@@ -11,8 +11,20 @@
  */
 
 use App\Core\Router;
+use App\Core\Middleware;
 
 $router = new Router();
+
+// Add global CSRF middleware for all state-changing requests
+$router->addGlobalMiddleware([Middleware::class, 'verifyCsrf']);
+
+$adminGuard = function(callable $handler) {
+    return function(...$args) use ($handler) {
+        return Middleware::guard(fn() => Middleware::ensureAdmin(), function() use ($handler, $args) {
+            return $handler(...$args);
+        }, '/admin/login');
+    };
+};
 
 // ============================================================================
 // CUSTOMER ROUTES (PUBLIC)
@@ -21,20 +33,48 @@ $router = new Router();
 // Homepage
 $router->get('/', 'HomeController@index');
 
+// Customer Authentication
+$router->get('/register', 'AuthController@showRegister');
+$router->post('/register', 'AuthController@register');
+$router->get('/login', 'AuthController@showLogin');
+$router->post('/login', 'AuthController@login');
+$router->post('/logout', 'AuthController@logout');
+
+// Password Reset
+$router->get('/forgot-password', 'PasswordResetController@showForgotForm');
+$router->post('/forgot-password', 'PasswordResetController@sendResetLink');
+$router->get('/reset-password/{token}', 'PasswordResetController@showResetForm');
+$router->post('/reset-password', 'PasswordResetController@resetPassword');
+
 // Shop & Product Browsing
 $router->get('/shop', 'ProductController@index');
 $router->get('/product/{slug}', 'ProductController@show');
 $router->get('/category/{slug}', 'ProductController@category');
+
+// Contact Page
+$router->get('/contact', function() {
+    return (new \App\Core\Controller())->view('customer.contact', [], false);
+});
 
 // Cart Operations (AJAX)
 $router->post('/cart/add', 'CartController@add');
 $router->post('/cart/update', 'CartController@update');
 $router->post('/cart/remove', 'CartController@remove');
 $router->get('/cart/count', 'CartController@count');
+$router->get('/cart/items', 'CartController@items');
 
 // Checkout
 $router->get('/checkout', 'CheckoutController@index');
 $router->post('/checkout/process', 'CheckoutController@process');
+
+// Payment Webhooks (No CSRF check - verified by signature)
+$router->post('/webhooks/stripe', function() {
+    // Remove CSRF check for webhooks
+    return (new \App\Controllers\WebhookController())->stripe(new \App\Core\Request());
+});
+$router->post('/webhooks/paypal', function() {
+    return (new \App\Controllers\WebhookController())->paypal(new \App\Core\Request());
+});
 
 // ============================================================================
 // ADMIN ROUTES (PROTECTED)
@@ -43,31 +83,63 @@ $router->post('/checkout/process', 'CheckoutController@process');
 // Authentication
 $router->get('/admin/login', 'Admin\\AuthController@showLogin');
 $router->post('/admin/login', 'Admin\\AuthController@login');
-$router->post('/admin/logout', 'Admin\\AuthController@logout');
+$router->post('/admin/logout', $adminGuard(fn() => (new \App\Controllers\Admin\AuthController())->logout()));
 
 // Dashboard
-$router->get('/admin', 'Admin\\DashboardController@index');
+$router->get('/admin', $adminGuard(function() {
+    return (new \App\Controllers\Admin\DashboardController())->index();
+}));
 
 // Category Management
-$router->get('/admin/categories', 'Admin\\CategoryController@index');
-$router->get('/admin/categories/create', 'Admin\\CategoryController@create');
-$router->post('/admin/categories', 'Admin\\CategoryController@store');
-$router->get('/admin/categories/{id}/edit', 'Admin\\CategoryController@edit');
-$router->post('/admin/categories/{id}', 'Admin\\CategoryController@update');
-$router->post('/admin/categories/{id}/delete', 'Admin\\CategoryController@destroy');
+$router->get('/admin/categories', $adminGuard(function() {
+    return (new \App\Controllers\Admin\CategoryController())->index();
+}));
+$router->get('/admin/categories/create', $adminGuard(function() {
+    return (new \App\Controllers\Admin\CategoryController())->create();
+}));
+$router->post('/admin/categories', $adminGuard(function() {
+    return (new \App\Controllers\Admin\CategoryController())->store();
+}));
+$router->get('/admin/categories/{id}/edit', $adminGuard(function($id) {
+    return (new \App\Controllers\Admin\CategoryController())->edit((int)$id);
+}));
+$router->post('/admin/categories/{id}', $adminGuard(function($id) {
+    return (new \App\Controllers\Admin\CategoryController())->update((int)$id);
+}));
+$router->post('/admin/categories/{id}/delete', $adminGuard(function($id) {
+    return (new \App\Controllers\Admin\CategoryController())->destroy((int)$id);
+}));
 
 // Product Management
-$router->get('/admin/products', 'Admin\\ProductController@index');
-$router->get('/admin/products/create', 'Admin\\ProductController@create');
-$router->post('/admin/products', 'Admin\\ProductController@store');
-$router->get('/admin/products/{id}/edit', 'Admin\\ProductController@edit');
-$router->post('/admin/products/{id}', 'Admin\\ProductController@update');
-$router->post('/admin/products/{id}/delete', 'Admin\\ProductController@destroy');
+$router->get('/admin/products', $adminGuard(function() {
+    return (new \App\Controllers\Admin\ProductController())->index();
+}));
+$router->get('/admin/products/create', $adminGuard(function() {
+    return (new \App\Controllers\Admin\ProductController())->create();
+}));
+$router->post('/admin/products', $adminGuard(function() {
+    return (new \App\Controllers\Admin\ProductController())->store();
+}));
+$router->get('/admin/products/{id}/edit', $adminGuard(function($id) {
+    return (new \App\Controllers\Admin\ProductController())->edit((int)$id);
+}));
+$router->post('/admin/products/{id}', $adminGuard(function($id) {
+    return (new \App\Controllers\Admin\ProductController())->update((int)$id);
+}));
+$router->post('/admin/products/{id}/delete', $adminGuard(function($id) {
+    return (new \App\Controllers\Admin\ProductController())->destroy((int)$id);
+}));
 
 // Order Management
-$router->get('/admin/orders', 'Admin\\OrderController@index');
-$router->get('/admin/orders/{id}', 'Admin\\OrderController@show');
-$router->post('/admin/orders/{id}/status', 'Admin\\OrderController@updateStatus');
+$router->get('/admin/orders', $adminGuard(function() {
+    return (new \App\Controllers\Admin\OrderController())->index();
+}));
+$router->get('/admin/orders/{id}', $adminGuard(function($id) {
+    return (new \App\Controllers\Admin\OrderController())->show((int)$id);
+}));
+$router->post('/admin/orders/{id}/status', $adminGuard(function($id) {
+    return (new \App\Controllers\Admin\OrderController())->updateStatus((int)$id);
+}));
 
 // ============================================================================
 // 404 Handler

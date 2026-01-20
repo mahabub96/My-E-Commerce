@@ -65,18 +65,35 @@ class Upload
             ];
         }
 
-        // Validate MIME type
+        // Validate MIME type (extension + finfo)
         if (isset($rules['mimes'])) {
             $allowed = explode(',', $rules['mimes']);
             $allowed = array_map('trim', $allowed);
 
             $fileExt = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $finfoMime = @mime_content_type($file['tmp_name']);
 
             if (!in_array($fileExt, $allowed)) {
                 return [
                     'valid' => false,
                     'error' => 'File type not allowed. Allowed types: ' . $rules['mimes']
                 ];
+            }
+
+            if ($finfoMime && isset($rules['mime_prefix'])) {
+                $prefixAllowed = false;
+                foreach ((array)$rules['mime_prefix'] as $prefix) {
+                    if (str_starts_with($finfoMime, $prefix)) {
+                        $prefixAllowed = true;
+                        break;
+                    }
+                }
+                if (!$prefixAllowed) {
+                    return [
+                        'valid' => false,
+                        'error' => 'File MIME type not allowed'
+                    ];
+                }
             }
         }
 
@@ -112,38 +129,112 @@ class Upload
      *     // Store in database:
      *     $product->update(['image' => $path]);
      */
-    public static function store(array $file, string $path = 'uploads'): string | false
+    public static function store(array $file, string $path = 'uploads', array $rules = []): string | false
     {
-        // Validate before storing
-        $validation = self::validate($file);
+        // Validate before storing with explicit MIME whitelist (block SVG)
+        $defaultRules = [
+            'mimes' => $rules['mimes'] ?? 'jpg,jpeg,png,gif,webp',
+            'allowed_mime_types' => $rules['allowed_mime_types'] ?? ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+            'max_size' => $rules['max_size'] ?? 2048,
+        ];
+
+        $validation = self::validate($file, $defaultRules);
         if (!$validation['valid']) {
             return false;
         }
 
-        // Prepare directory
-        $directory = __DIR__ . '/../../public/assets/' . trim($path, '/');
+        // Use storage/uploads outside webroot to avoid direct execution
+        $storageDir = __DIR__ . '/../../storage/uploads/' . trim($path, '/');
 
         // Create directory if not exists
-        if (!is_dir($directory)) {
-            if (!mkdir($directory, 0755, true)) {
+        if (!is_dir($storageDir)) {
+            if (!mkdir($storageDir, 0750, true)) {
                 return false;
             }
         }
 
-        // Generate unique filename
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $filename = time() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+        // Use finfo to determine MIME and validate against strict whitelist
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $detected = $finfo->file($file['tmp_name']);
 
-        // Full path for storage
-        $fullPath = $directory . '/' . $filename;
-
-        // Move uploaded file to destination
-        if (!move_uploaded_file($file['tmp_name'], $fullPath)) {
+        // Block SVG and other XSS vectors with strict MIME validation
+        if (!in_array($detected, $defaultRules['allowed_mime_types'], true)) {
             return false;
         }
 
-        // Return relative path (for storing in database)
-        return trim($path, '/') . '/' . $filename;
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+        // Disallow known dangerous extensions even if MIME matches
+        $dangerous = ['php', 'php7', 'phtml', 'phar', 'exe', 'sh', 'pl', 'py', 'svg', 'xml', 'html', 'htm', 'js'];
+        if (in_array($ext, $dangerous, true)) {
+            return false;
+        }
+
+        // Reprocess image to strip EXIF and ensure it's a valid image
+        try {
+            $imageInfo = @getimagesize($file['tmp_name']);
+            if (!$imageInfo) {
+                return false; // Not a valid image
+            }
+
+            // Create clean image from uploaded file
+            $image = null;
+            switch ($imageInfo[2]) {
+                case IMAGETYPE_JPEG:
+                    $image = @imagecreatefromjpeg($file['tmp_name']);
+                    break;
+                case IMAGETYPE_PNG:
+                    $image = @imagecreatefrompng($file['tmp_name']);
+                    break;
+                case IMAGETYPE_GIF:
+                    $image = @imagecreatefromgif($file['tmp_name']);
+                    break;
+                case IMAGETYPE_WEBP:
+                    $image = @imagecreatefromwebp($file['tmp_name']);
+                    break;
+                default:
+                    return false;
+            }
+
+            if (!$image) {
+                return false;
+            }
+
+            // Generate unique filename
+            $filename = time() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+            $fullPath = $storageDir . '/' . $filename;
+
+            // Save reprocessed image (strips EXIF and embedded payloads)
+            $saved = false;
+            switch ($imageInfo[2]) {
+                case IMAGETYPE_JPEG:
+                    $saved = @imagejpeg($image, $fullPath, 90);
+                    break;
+                case IMAGETYPE_PNG:
+                    $saved = @imagepng($image, $fullPath, 8);
+                    break;
+                case IMAGETYPE_GIF:
+                    $saved = @imagegif($image, $fullPath);
+                    break;
+                case IMAGETYPE_WEBP:
+                    $saved = @imagewebp($image, $fullPath, 90);
+                    break;
+            }
+
+            @imagedestroy($image);
+
+            if (!$saved) {
+                return false;
+            }
+
+            // Set safe file permissions (owner read/write)
+            @chmod($fullPath, 0640);
+
+            // Return relative storage path for DB
+            return trim($path, '/') . '/' . $filename;
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**
@@ -158,7 +249,7 @@ class Upload
      */
     public static function delete(string $filePath): bool
     {
-        $fullPath = __DIR__ . '/../../public/assets/' . ltrim($filePath, '/');
+        $fullPath = __DIR__ . '/../../storage/uploads/' . ltrim($filePath, '/');
 
         if (!file_exists($fullPath)) {
             return false;
@@ -197,7 +288,7 @@ class Upload
      */
     public static function getMimeType(string $filePath): string | false
     {
-        $fullPath = __DIR__ . '/../../public/assets/' . ltrim($filePath, '/');
+        $fullPath = __DIR__ . '/../../storage/uploads/' . ltrim($filePath, '/');
 
         if (!file_exists($fullPath)) {
             return false;

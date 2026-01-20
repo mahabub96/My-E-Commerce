@@ -58,4 +58,14 @@ class Controller
     {
         return $this->request->isAjax();
     }
+
+    /**
+     * Get PDO database connection
+     * 
+     * @return \PDO
+     */
+    protected function db(): \PDO
+    {
+        return \App\Core\Model::getPDO();
+    }
 }

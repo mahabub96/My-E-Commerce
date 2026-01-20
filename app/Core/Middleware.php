@@ -100,6 +100,91 @@ class Middleware
     }
 
     /**
+     * CSRF Protection Middleware
+     * Validates CSRF token for state-changing requests
+     * 
+     * @return bool True if CSRF token is valid or not required
+     */
+    public static function verifyCsrf(): bool
+    {
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        
+        // Only check CSRF on state-changing methods
+        if (!in_array($method, ['POST', 'PUT', 'DELETE', 'PATCH'])) {
+            return true;
+        }
+
+        $token = $_POST['_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        
+        if (!verify_csrf($token)) {
+            http_response_code(419);
+            $request = new Request();
+            if ($request->isAjax()) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'CSRF token mismatch']);
+            } else {
+                echo '<h1>419 Page Expired</h1><p>CSRF token mismatch. Please refresh and try again.</p>';
+            }
+            exit;
+        }
+
+        return true;
+    }
+
+    /**
+     * Rate Limiting Middleware
+     * Tracks request attempts and blocks excessive requests
+     * 
+     * @param string $key Unique identifier for rate limiting (e.g., IP address, user email)
+     * @param int $maxAttempts Maximum attempts allowed
+     * @param int $decayMinutes Time window in minutes
+     * @return bool True if request is allowed
+     */
+    public static function rateLimit(string $key, int $maxAttempts = 5, int $decayMinutes = 15): bool
+    {
+        $storageKey = 'rate_limit_' . md5($key);
+        $attempts = $_SESSION[$storageKey] ?? ['count' => 0, 'reset_at' => time() + ($decayMinutes * 60)];
+
+        // Reset if time window has passed
+        if (time() > $attempts['reset_at']) {
+            $attempts = ['count' => 0, 'reset_at' => time() + ($decayMinutes * 60)];
+        }
+
+        $attempts['count']++;
+        $_SESSION[$storageKey] = $attempts;
+
+        if ($attempts['count'] > $maxAttempts) {
+            $retryAfter = $attempts['reset_at'] - time();
+            http_response_code(429);
+            header('Retry-After: ' . $retryAfter);
+            
+            $request = new Request();
+            if ($request->isAjax()) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false, 
+                    'message' => 'Too many attempts. Please try again in ' . ceil($retryAfter / 60) . ' minutes.',
+                    'retry_after' => $retryAfter
+                ]);
+            } else {
+                echo '<h1>429 Too Many Requests</h1><p>Please try again in ' . ceil($retryAfter / 60) . ' minutes.</p>';
+            }
+            exit;
+        }
+
+        return true;
+    }
+
+    /**
+     * Clear rate limit for a key (e.g., after successful login)
+     */
+    public static function clearRateLimit(string $key): void
+    {
+        $storageKey = 'rate_limit_' . md5($key);
+        unset($_SESSION[$storageKey]);
+    }
+
+    /**
      * Get current user role
      * 
      * @return string|null User role if authenticated, null otherwise

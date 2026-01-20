@@ -13,11 +13,28 @@ class Order extends Model
     protected string $table = 'orders';
 
     /**
-     * Generate a readable unique order number
+     * Generate a readable unique order number with collision check
      */
     public function generateOrderNumber(): string
     {
-        return 'ORD-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
+        $maxAttempts = 10;
+        $attempt = 0;
+
+        do {
+            $orderNumber = 'ORD-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+            
+            // Check if order number already exists
+            $existing = $this->where('order_number', $orderNumber);
+            
+            if (empty($existing)) {
+                return $orderNumber; // Unique order number found
+            }
+
+            $attempt++;
+        } while ($attempt < $maxAttempts);
+
+        // Fallback: use timestamp + microtime for absolute uniqueness
+        return 'ORD-' . date('Ymd') . '-' . strtoupper(substr(md5(microtime(true)), 0, 8));
     }
 
     /**
@@ -112,5 +129,23 @@ class Order extends Model
     public function getByUser(int $userId): array
     {
         return $this->where('user_id', $userId);
+    }
+
+    /**
+     * Get order items with product details
+     * 
+     * @param int $orderId
+     * @return array Order items with product information
+     */
+    public function getOrderItems(int $orderId): array
+    {
+        $sql = "SELECT oi.*, p.name as product_name, p.image as product_image, p.slug as product_slug
+                FROM order_items oi
+                INNER JOIN products p ON oi.product_id = p.id
+                WHERE oi.order_id = :order_id
+                ORDER BY oi.id";
+        
+        $stmt = $this->query($sql, ['order_id' => $orderId]);
+        return $stmt->fetchAll();
     }
 }

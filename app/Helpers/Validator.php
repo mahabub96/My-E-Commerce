@@ -2,48 +2,12 @@
 
 namespace App\Helpers;
 
-/**
- * Validator - Form Validation Helper
- * 
- * Fluent validation builder with Laravel-style rule syntax.
- * Supports common validation rules: required, email, min, max, unique, confirmed, etc.
- * 
- * Usage:
- *     $v = Validator::make($_POST, [
- *         'email' => 'required|email',
- *         'password' => 'required|min:6|confirmed',
- *         'age' => 'numeric|min:18',
- *     ]);
- * 
- *     if ($v->fails()) {
- *         $errors = $v->errors();  // ['email' => 'must be valid email', ...]
- *     }
- */
-
 class Validator
 {
-    /**
-     * Array to store validation errors by field
-     * @var array
-     */
     private array $errors = [];
-
-    /**
-     * Data being validated
-     * @var array
-     */
     private array $data = [];
+    private static ?\PDO $pdo = null;
 
-    /**
-     * Factory method to create validator and validate immediately
-     * 
-     * @param array $data Data to validate (typically $_POST)
-     * @param array $rules Validation rules (field => 'rule1|rule2:param')
-     * @return self Validator instance with validation already run
-     * 
-     * @example
-     *     $v = Validator::make($_POST, ['email' => 'required|email']);
-     */
     public static function make(array $data, array $rules): self
     {
         $validator = new self();
@@ -59,95 +23,42 @@ class Validator
         return $validator;
     }
 
-    /**
-     * Check if validation failed (has errors)
-     * 
-     * @return bool True if any validation failed
-     * 
-     * @example
-     *     if ($validator->fails()) {
-     *         echo "Validation failed";
-     *     }
-     */
     public function fails(): bool
     {
         return !empty($this->errors);
     }
 
-    /**
-     * Check if validation passed (no errors)
-     * Alias for !$this->fails()
-     * 
-     * @return bool True if validation passed
-     * 
-     * @example
-     *     if ($validator->passes()) {
-     *         // Save to database
-     *     }
-     */
     public function passes(): bool
     {
         return empty($this->errors);
     }
 
-    /**
-     * Get all validation errors
-     * 
-     * @return array Errors by field: ['field' => 'error message', ...]
-     * 
-     * @example
-     *     $errors = $validator->errors();
-     *     // ['email' => 'must be valid email', 'password' => 'required']
-     */
     public function errors(): array
     {
         return $this->errors;
     }
 
-    /**
-     * Get error for specific field
-     * 
-     * @param string $field Field name
-     * @return string|null Error message or null if no error
-     * 
-     * @example
-     *     $emailError = $validator->error('email');
-     */
     public function error(string $field): ?string
     {
         return $this->errors[$field] ?? null;
     }
 
-    /**
-     * Internal method to validate a single field/rule combination
-     * 
-     * @param string $field Field name
-     * @param mixed $value Field value
-     * @param string $rule Validation rule (e.g., 'required', 'min:6')
-     * @return void
-     */
-    private function validate(string $field, $value, string $rule): void
+    private function validate(string $field, mixed $value, string $rule): void
     {
-        // Skip if already has error for this field
-        if (isset($this->errors[$field])) {
-            return;
-        }
-
-        // Parse rule into name and parameters
         $parts = explode(':', $rule, 2);
-        $ruleName = trim($parts[0]);
+        $ruleName = $parts[0];
         $params = isset($parts[1]) ? explode(',', $parts[1]) : [];
 
         switch ($ruleName) {
             case 'required':
-                if (empty($value) && $value !== '0') {
+                if ($value === null || $value === '') {
                     $this->errors[$field] = "$field is required";
                 }
                 break;
 
             case 'email':
                 if ($value && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
-                    $this->errors[$field] = "$field must be valid email";
+                    $this->errors[$field] = "$field must be a valid email";
                 }
                 break;
 
@@ -183,9 +94,45 @@ class Validator
                 break;
 
             case 'unique':
-                // TODO: Implement database check for unique values
-                // Usage: 'email' => 'unique:users' checks users table email column
-                // Will require database model instance
+                if (empty($params[0])) {
+                    break;
+                }
+
+                $table = $params[0];
+                $column = $params[1] ?? $field;
+                $exceptId = $params[2] ?? null;
+
+                $identifierPattern = '/^[a-zA-Z0-9_]+$/';
+                if (!preg_match($identifierPattern, $table) || !preg_match($identifierPattern, $column)) {
+                    $this->errors[$field] = "$field uniqueness check failed";
+                    break;
+                }
+
+                $pdo = self::pdo();
+                if (!$pdo) {
+                    $this->errors[$field] = "$field uniqueness check failed";
+                    break;
+                }
+
+                try {
+                    $sql = "SELECT COUNT(*) AS cnt FROM `{$table}` WHERE `{$column}` = :val";
+                    $qParams = ['val' => $value];
+
+                    if ($exceptId !== null && $exceptId !== '') {
+                        $sql .= " AND `id` != :except";
+                        $qParams['except'] = $exceptId;
+                    }
+
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute($qParams);
+                    $row = $stmt->fetch();
+
+                    if ($row && (int)($row['cnt'] ?? 0) > 0) {
+                        $this->errors[$field] = "$field must be unique";
+                    }
+                    } catch (\Throwable $e) {
+                        $this->errors[$field] = "$field uniqueness check failed";
+                    }
                 break;
 
             case 'regex':
@@ -202,12 +149,42 @@ class Validator
                 break;
 
             case 'nullable':
-                // Skip validation if value is empty
                 break;
 
             default:
-                // Unknown rule - ignore
                 break;
         }
+    }
+
+    private static function pdo(): ?\PDO
+    {
+        if (self::$pdo instanceof \PDO) {
+            return self::$pdo;
+        }
+
+        $envPath = __DIR__ . '/../../config/env.php';
+        if (!file_exists($envPath)) {
+            return null;
+        }
+
+        $env = require $envPath;
+
+        try {
+            $host = $env['DB_HOST'] ?? '127.0.0.1';
+            $db   = $env['DB_NAME'] ?? '';
+            $user = $env['DB_USER'] ?? 'root';
+            $pass = $env['DB_PASS'] ?? '';
+
+            $dsn = "mysql:host={$host};dbname={$db};charset=utf8mb4";
+            self::$pdo = new \PDO($dsn, $user, $pass, [
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+                \PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return self::$pdo;
     }
 }

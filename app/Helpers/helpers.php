@@ -180,12 +180,35 @@ function e(string $text): string
 
 
 /**
- * Dump variables for debugging (does NOT stop execution)
- *
- * @param mixed ...$vars Variables to dump
- * @return void
+ * Output raw unescaped content in views
+ * Use only for trusted HTML content (e.g., WYSIWYG editor output, pre-sanitized content)
+ * 
+ * @param mixed $value The value to output without escaping
+ * @return string The raw unescaped value
+ * 
+ * @example
+ *     // In a view, all variables are auto-escaped:
+ *     <?= $userName ?>  // Auto-escaped
+ *     
+ *     // For trusted HTML content:
+ *     <?= raw($blogContent) ?>  // NOT escaped
  */
-function dump(...$vars): void
+if (!function_exists('raw')) {
+    function raw(mixed $value): string
+    {
+        return \App\Core\Views::raw($value);
+    }
+}
+
+
+if (!function_exists('dump')) {
+    /**
+     * Dump variables for debugging (does NOT stop execution)
+     *
+     * @param mixed ...$vars Variables to dump
+     * @return void
+     */
+    function dump(...$vars): void
 {
     // Do nothing in production
     if (env('APP_ENV') === 'production') {
@@ -207,6 +230,7 @@ function dump(...$vars): void
     }
 
     echo '</pre>';
+    }
 }
 
 
@@ -216,7 +240,8 @@ function dump(...$vars): void
  * @param mixed ...$vars Variables to dump
  * @return void
  */
-function dd(...$vars): void
+if (!function_exists('dd')) {
+    function dd(...$vars): void
 {
     if (env('APP_ENV') === 'production') {
         abort(500);
@@ -224,4 +249,81 @@ function dd(...$vars): void
 
     dump(...$vars);
     exit;
+    }
 }
+
+if (!function_exists('e')) {
+    /**
+     * Escape HTML entities to prevent XSS attacks
+     * 
+     * @param mixed $value Value to escape
+     * @return string Escaped string safe for HTML output
+     * 
+     * @example
+     *     echo e($userInput);  // <script> becomes &lt;script&gt;
+     *     <h1><?= e($product['name']) ?></h1>
+     */
+    function e($value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        return htmlspecialchars((string)$value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+}
+
+if (!function_exists('old')) {
+    /**
+     * Get old input value for form repopulation after validation errors
+     * 
+     * @param string $key Input field name
+     * @param mixed $default Default value if not found
+     * @return mixed Old input value or default
+     * 
+     * @example
+     *     <input type="text" name="email" value="<?= e(old('email')) ?>">
+     */
+    function old(string $key, $default = '')
+    {
+        return $_SESSION['_old_input'][$key] ?? $default;
+    }
+}
+
+if (!function_exists('flash')) {
+    /**
+     * Set flash message for next request
+     * 
+     * @param string $key Message key (success, error, warning, info)
+     * @param mixed $value Message value
+     * @return void
+     * 
+     * @example
+     *     flash('success', 'Product added successfully');
+     *     flash('error', 'Failed to delete category');
+     */
+    function flash(string $key, $value): void
+    {
+        $_SESSION['_flash'][$key] = $value;
+    }
+}
+
+if (!function_exists('get_flash')) {
+    /**
+     * Get and clear flash message
+     * 
+     * @param string $key Message key
+     * @param mixed $default Default value if not found
+     * @return mixed Flash message or default
+     * 
+     * @example
+     *     $success = get_flash('success');
+     *     if ($error = get_flash('error')) { echo $error; }
+     */
+    function get_flash(string $key, $default = null)
+    {
+        $value = $_SESSION['_flash'][$key] ?? $default;
+        unset($_SESSION['_flash'][$key]);
+        return $value;
+    }
+}
+

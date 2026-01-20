@@ -9,18 +9,26 @@ class Request
     protected array $server;
     protected array $jsonBody;
 
+    private int $maxBodyBytes;
+
     public function __construct()
     {
         $this->get = $_GET ?? [];
         $this->post = $_POST ?? [];
         $this->server = $_SERVER ?? [];
         $this->jsonBody = [];
+        $this->maxBodyBytes = 2 * 1024 * 1024; // 2MB default safeguard
         $this->parseJsonBody();
     }
 
     protected function parseJsonBody(): void
     {
-        $input = @file_get_contents('php://input');
+        $contentLength = (int)($this->server['CONTENT_LENGTH'] ?? 0);
+        if ($contentLength > $this->maxBodyBytes) {
+            return; // refuse to parse oversized bodies
+        }
+
+        $input = @file_get_contents('php://input', false, null, 0, $this->maxBodyBytes);
         if (!$input) {
             return;
         }
@@ -90,5 +98,15 @@ class Request
         }
 
         return false;
+    }
+
+    /**
+     * Get raw request body (for webhooks)
+     * 
+     * @return string Raw request body
+     */
+    public function rawBody(): string
+    {
+        return @file_get_contents('php://input') ?: '';
     }
 }

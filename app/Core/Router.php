@@ -11,6 +11,7 @@ class Router
         'DELETE' => [],
     ];
 
+    protected array $globalMiddleware = [];
     protected $notFoundHandler;
 
     /**
@@ -32,7 +33,7 @@ class Router
     /**
      * Register a route for given HTTP method
      */
-    public function addRoute(string $method, string $path, $handler)
+    public function addRoute(string $method, string $path, $handler, array $middleware = [])
     {
         $path = '/' . trim($path, '/');
         $regex = $this->convertToRegex($path);
@@ -40,7 +41,16 @@ class Router
             'path' => $path,
             'regex' => $regex,
             'handler' => $handler,
+            'middleware' => $middleware,
         ];
+    }
+
+    /**
+     * Add global middleware that runs on every request
+     */
+    public function addGlobalMiddleware(callable $middleware)
+    {
+        $this->globalMiddleware[] = $middleware;
     }
 
     /**
@@ -65,6 +75,14 @@ class Router
         $uri = parse_url($uri, PHP_URL_PATH) ?: '/';
         $uri = '/' . trim($uri, '/');
 
+        // Run global middleware first
+        foreach ($this->globalMiddleware as $middleware) {
+            $result = call_user_func($middleware);
+            if ($result === false) {
+                return; // Middleware blocked the request
+            }
+        }
+
         if (!isset($this->routes[$method])) {
             return $this->handleNotFound();
         }
@@ -75,6 +93,16 @@ class Router
                 foreach ($matches as $key => $val) {
                     if (is_string($key)) {
                         $params[$key] = $val;
+                    }
+                }
+
+                // Run route-specific middleware
+                if (!empty($route['middleware'])) {
+                    foreach ($route['middleware'] as $middleware) {
+                        $result = call_user_func($middleware);
+                        if ($result === false) {
+                            return; // Middleware blocked the request
+                        }
                     }
                 }
 
