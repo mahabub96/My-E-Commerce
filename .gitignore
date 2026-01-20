@@ -3,3 +3,5 @@ vendor/
 config/env.php
 storage/uploads/
 README.md
+resources\views\CLEANUP.md
+resources\views\FRONTEND_DOCUMENTATION.md
