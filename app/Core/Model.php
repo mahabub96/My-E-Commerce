@@ -16,7 +16,7 @@ abstract class Model
 
     protected string $primaryKey = 'id';
 
-    protected static function getPDO(): PDO
+    public static function getPDO(): PDO
     {
         if (self::$pdo instanceof PDO) {
             return self::$pdo;
@@ -56,7 +56,37 @@ abstract class Model
     public function query(string $sql, array $params = [])
     {
         $stmt = self::getPDO()->prepare($sql);
-        $stmt->execute($params);
+
+        // If SQL contains named placeholders (e.g., :name) but caller passed a positional array
+        // convert positional array to associative by mapping in-order placeholders to values.
+        $hasNamed = preg_match_all('/:([a-zA-Z_][a-zA-Z0-9_]*)/', $sql, $matches) && !empty($matches[1]);
+        $isPositionalArray = array_values($params) === $params; // sequential numeric keys
+
+        if ($hasNamed && $isPositionalArray && count($params) > 0) {
+            // Map only the first occurrence of each placeholder name in SQL order
+            $placeholders = array_values(array_unique($matches[1]));
+            $mapped = [];
+            foreach ($placeholders as $i => $name) {
+                if (array_key_exists($i, $params)) {
+                    $mapped[$name] = $params[$i];
+                } else {
+                    // Not enough parameters provided - leave as-is and let PDO throw a clear error
+                    $mapped = $params;
+                    break;
+                }
+            }
+            $params = $mapped;
+        }
+
+        try {
+            $stmt->execute($params);
+        } catch (\PDOException $e) {
+            // Add context to assist debugging (logged to app log)
+            $msg = sprintf("SQL error: %s | SQL: %s | Params: %s", $e->getMessage(), $sql, json_encode($params));
+            error_log($msg);
+            throw $e;
+        }
+
         return $stmt;
     }
 

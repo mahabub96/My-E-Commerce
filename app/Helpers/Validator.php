@@ -136,8 +136,32 @@ class Validator
                 break;
 
             case 'regex':
-                if ($value && !preg_match($params[0] ?? '', $value)) {
-                    $this->errors[$field] = "$field format is invalid";
+                // Use the full pattern string after the first ':' and reassemble if commas were split
+                $pattern = $parts[1] ?? '';
+                // If earlier code split params by comma, rejoin them to be safe
+                if (isset($params) && count($params) > 1) {
+                    $pattern = implode(',', $params);
+                }
+                if ($value) {
+                    // Ensure pattern is non-empty
+                    if ($pattern === '') {
+                        $this->errors[$field] = "$field format is invalid";
+                        break;
+                    }
+
+                    // If pattern lacks proper delimiters, wrap it with '/'
+                    $delim = $pattern[0];
+                    if (strlen($pattern) < 2 || substr($pattern, -1) !== $delim) {
+                        // Escape any existing '/' before wrapping
+                        $safe = str_replace('/', '\\/', $pattern);
+                        $pattern = '/' . $safe . '/';
+                    }
+
+                    // Suppress warnings from invalid patterns and treat failed match as validation error
+                    $matched = @preg_match($pattern, $value);
+                    if ($matched !== 1) {
+                        $this->errors[$field] = "$field format is invalid";
+                    }
                 }
                 break;
 

@@ -50,44 +50,84 @@ class CategoryController extends Controller
 			]);
 		}
 		
-		return $this->view('admin.categories');
+		return $this->view('admin.categories', ['categories' => $categories], false);
 	}
 
 	public function create()
 	{
-		return $this->view('admin/categories/create', []);
+		return $this->view('admin.category-create', [], false);
 	}
 
 	public function store()
 	{
 		$input = $this->request->all();
+		$iconColumn = $this->columnExists('categories', 'icon_path');
 		$validator = Validator::make($input, [
 			'name' => 'required|min:2|unique:categories,name',
 			'status' => 'required|in:active,inactive',
 		]);
 
 		if ($validator->fails()) {
-			return $this->json(['success' => false, 'errors' => $validator->errors()], 422);
+			if ($this->request->isAjax()) {
+				return $this->json(['success' => false, 'errors' => $validator->errors()], 422);
+			}
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('errors', $validator->errors());
+			$this->redirect('/admin/categories/create');
+			return;
 		}
 
 		$categoryModel = new Category();
+		$slugInput = trim((string)($input['slug'] ?? ''));
+		$slug = $slugInput !== '' ? $this->generateUniqueSlug($slugInput, $categoryModel) : $this->generateUniqueSlug($input['name'], $categoryModel);
 		$data = [
 			'name' => $input['name'],
-			'slug' => $this->generateUniqueSlug($input['name'], $categoryModel),
+			'slug' => $slug,
 			'description' => $input['description'] ?? null,
 			'status' => $input['status'],
 			'created_at' => date('Y-m-d H:i:s'),
 		];
 
 		if (!empty($_FILES['image']['name'])) {
-			$path = Upload::store($_FILES['image'], 'images/categories');
+			$validation = Upload::validate($_FILES['image'], [
+				'mimes' => 'jpg,jpeg,png,webp,svg',
+				'max_size' => 2048,
+				'mime_prefix' => ['image/'],
+			]);
+			if (!$validation['valid']) {
+				if ($this->request->isAjax()) {
+					return $this->json(['success' => false, 'errors' => ['image' => $validation['error']]], 422);
+				}
+				\App\Helpers\Session::start();
+				\App\Helpers\Session::flash('error', $validation['error']);
+				$this->redirect('/admin/categories/create');
+				return;
+			}
+			$path = Upload::store($_FILES['image'], 'categories', [
+				'mimes' => 'jpg,jpeg,png,webp,svg',
+				'allowed_mime_types' => ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'],
+				'max_size' => 2048,
+				'allow_svg' => true,
+				'mime_prefix' => ['image/'],
+			]);
 			if ($path) {
-				$data['image'] = $path;
+				if ($iconColumn) {
+					$data['icon_path'] = $path;
+					$data['image'] = $path;
+				} else {
+					$data['image'] = $path;
+				}
 			}
 		}
 
 		$categoryModel->createCategory($data);
-		return $this->json(['success' => true, 'message' => 'Category created']);
+		if ($this->request->isAjax()) {
+			return $this->json(['success' => true, 'message' => 'Category created']);
+		}
+		\App\Helpers\Session::start();
+		\App\Helpers\Session::flash('success', 'Category created successfully.');
+		$this->redirect('/admin/categories');
+		return;
 	}
 
 	public function edit(int $id)
@@ -96,38 +136,119 @@ class CategoryController extends Controller
 		if (!$category) {
 			return $this->json(['error' => 'Not found'], 404);
 		}
-		return $this->view('admin/categories/edit', ['category' => $category]);
+		if ($this->request->isAjax()) {
+			$icon = $category['icon_path'] ?? $category['image'] ?? null;
+			$category['icon_url'] = Category::resolveIconUrl($icon);
+			return $this->json(['category' => $category]);
+		}
+		return $this->view('admin.category-create', ['category' => $category], false);
 	}
 
 	public function update(int $id)
 	{
 		$input = $this->request->all();
+		$iconColumn = $this->columnExists('categories', 'icon_path');
 		$validator = Validator::make($input, [
 			'name' => 'required|min:2|unique:categories,name,' . $id,
 			'status' => 'required|in:active,inactive',
 		]);
 		if ($validator->fails()) {
-			return $this->json(['success' => false, 'errors' => $validator->errors()], 422);
+			if ($this->request->isAjax()) {
+				return $this->json(['success' => false, 'errors' => $validator->errors()], 422);
+			}
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('errors', $validator->errors());
+			$this->redirect('/admin/categories/' . $id . '/edit');
+			return;
 		}
 
 		$categoryModel = new Category();
+		$slugInput = trim((string)($input['slug'] ?? ''));
+		$slug = $slugInput !== '' ? $this->generateUniqueSlug($slugInput, $categoryModel, $id) : $this->generateUniqueSlug($input['name'], $categoryModel, $id);
 		$data = [
 			'name' => $input['name'],
-			'slug' => $this->generateUniqueSlug($input['name'], $categoryModel, $id),
+			'slug' => $slug,
 			'description' => $input['description'] ?? null,
 			'status' => $input['status'],
 			'updated_at' => date('Y-m-d H:i:s'),
 		];
 
+		$existing = $categoryModel->find($id);
+		$existingIcon = $existing['icon_path'] ?? $existing['image'] ?? null;
+		$removeIcon = !empty($input['remove_icon']);
+		$newPath = null;
+
+		if ($removeIcon) {
+			if ($iconColumn) {
+				$data['icon_path'] = null;
+			}
+			$data['image'] = null;
+		}
+
 		if (!empty($_FILES['image']['name'])) {
-			$path = Upload::store($_FILES['image'], 'images/categories');
+			$validation = Upload::validate($_FILES['image'], [
+				'mimes' => 'jpg,jpeg,png,webp,svg',
+				'max_size' => 2048,
+				'mime_prefix' => ['image/'],
+			]);
+			if (!$validation['valid']) {
+				if ($this->request->isAjax()) {
+					return $this->json(['success' => false, 'errors' => ['image' => $validation['error']]], 422);
+				}
+				\App\Helpers\Session::start();
+				\App\Helpers\Session::flash('error', $validation['error']);
+				$this->redirect('/admin/categories/' . $id . '/edit');
+				return;
+			}
+			$path = Upload::store($_FILES['image'], 'categories', [
+				'mimes' => 'jpg,jpeg,png,webp,svg',
+				'allowed_mime_types' => ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'],
+				'max_size' => 2048,
+				'allow_svg' => true,
+				'mime_prefix' => ['image/'],
+			]);
 			if ($path) {
-				$data['image'] = $path;
+				$newPath = $path;
+				if ($iconColumn) {
+					$data['icon_path'] = $path;
+					$data['image'] = $path;
+				} else {
+					$data['image'] = $path;
+				}
 			}
 		}
 
-		$categoryModel->updateCategory($id, $data);
-		return $this->json(['success' => true, 'message' => 'Category updated']);
+		$pdo = Category::getPDO();
+		try {
+			$pdo->beginTransaction();
+			$categoryModel->updateCategory($id, $data);
+			$pdo->commit();
+		} catch (\Throwable $e) {
+			if ($pdo->inTransaction()) {
+				$pdo->rollBack();
+			}
+			if (!empty($newPath)) {
+				$this->deleteManagedUpload($newPath);
+			}
+			if ($this->request->isAjax()) {
+				return $this->json(['success' => false, 'message' => 'Category update failed'], 500);
+			}
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('error', 'Category update failed.');
+			$this->redirect('/admin/categories/' . $id . '/edit');
+			return;
+		}
+
+		if (!empty($existingIcon) && ($removeIcon || !empty($newPath))) {
+			$this->deleteManagedUpload($existingIcon);
+		}
+		if ($this->request->isAjax()) {
+			return $this->json(['success' => true, 'message' => 'Category updated']);
+		}
+		\App\Helpers\Session::start();
+		\App\Helpers\Session::flash('success', 'Category updated successfully.');
+		$this->redirect('/admin/categories');
+		return;
 	}
 
 	public function destroy(int $id)
@@ -140,14 +261,31 @@ class CategoryController extends Controller
 		$productCount = count($products);
 		
 		if ($productCount > 0) {
-			return $this->json([
-				'success' => false,
-				'message' => "Cannot delete category with {$productCount} product(s). Please reassign or delete products first."
-			], 400);
+			if ($this->request->isAjax()) {
+				return $this->json([
+					'success' => false,
+					'message' => "Cannot delete category with {$productCount} product(s). Please reassign or delete products first."
+				], 400);
+			}
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('error', "Cannot delete category with {$productCount} product(s). Please reassign or delete products first.");
+			$this->redirect('/admin/categories');
+			return;
 		}
 		
+		$category = $categoryModel->find($id);
 		$categoryModel->deleteCategory($id);
-		return $this->json(['success' => true, 'message' => 'Category deleted']);
+		if (!empty($category)) {
+			$icon = $category['icon_path'] ?? $category['image'] ?? null;
+			$this->deleteManagedUpload($icon);
+		}
+		if ($this->request->isAjax()) {
+			return $this->json(['success' => true, 'message' => 'Category deleted']);
+		}
+		\App\Helpers\Session::start();
+		\App\Helpers\Session::flash('success', 'Category deleted successfully.');
+		$this->redirect('/admin/categories');
+		return;
 	}
 
 	/**
@@ -184,5 +322,34 @@ class CategoryController extends Controller
 
 		$results = $model->select('id', null, $where, $params, null, 1);
 		return !empty($results);
+	}
+
+	private function columnExists(string $table, string $column): bool
+	{
+		if (!preg_match('/^[a-z0-9_]+$/i', $table) || !preg_match('/^[a-z0-9_]+$/i', $column)) {
+			return false;
+		}
+		$stmt = (new Category())->query("SHOW COLUMNS FROM `{$table}` LIKE '{$column}'");
+		return (bool)$stmt->fetch();
+	}
+
+	private function deleteManagedUpload(?string $path): void
+	{
+		if (empty($path)) {
+			return;
+		}
+		$relative = ltrim($path, '/');
+		$allowedPrefixes = ['uploads/', 'categories/', 'images/categories/'];
+		$allowed = false;
+		foreach ($allowedPrefixes as $prefix) {
+			if (strpos($relative, $prefix) === 0) {
+				$allowed = true;
+				break;
+			}
+		}
+		if (!$allowed) {
+			return;
+		}
+		Upload::delete($relative);
 	}
 }

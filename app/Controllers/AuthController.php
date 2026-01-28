@@ -6,6 +6,7 @@ use App\Core\Controller;
 use App\Core\Middleware;
 use App\Helpers\Validator;
 use App\Models\User;
+use App\Services\ValidationRules;
 
 /**
  * Customer Authentication Controller
@@ -20,15 +21,27 @@ class AuthController extends Controller
 	 */
 	public function showRegister()
 	{
-		// If already logged in, redirect to home
-		if (Middleware::ensureAuth()) {
-			header('Location: /');
-			exit;
+		// If logged in as admin, block customer routes and show informative message
+		if (Middleware::ensureAdmin()) {
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('info', "You're already logged in as an Admin.");
+			$this->redirect('/admin/dashboard');
+			return;
 		}
 
+		// If already logged in as customer, redirect to home
+		if (Middleware::ensureCustomer()) {
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('info', 'You are already logged in.');
+			$this->redirect('/');
+			return;
+		}
+
+		// Render the existing customer register view (frontend lives under customer/)
 		try {
-			return $this->view('auth/register');
+			return $this->view('customer.register');
 		} catch (\Throwable $e) {
+			// Return JSON only as a graceful fallback for non-HTML contexts
 			return $this->json(['form' => 'register']);
 		}
 	}
@@ -46,14 +59,20 @@ class AuthController extends Controller
 
 		$input = $this->request->all();
 
-		$validator = Validator::make($input, [
-			'name' => 'required|min:2|max:191',
-			'email' => 'required|email|unique:users,email',
-			'password' => 'required|min:8|confirmed',
-		]);
+		$validator = Validator::make($input, ValidationRules::register());
 
+		// Return validation errors as JSON for AJAX, otherwise render the form with errors
 		if ($validator->fails()) {
-			return $this->json(['success' => false, 'errors' => $validator->errors()], 422);
+			if ($this->request->isAjax()) {
+				return $this->json(['success' => false, 'errors' => $validator->errors()], 422);
+			}
+
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('errors', $validator->errors());
+			// Preserve old input in session for repopulation
+			\App\Helpers\Session::flash('old', $input);
+			$this->redirect('/register');
+			return;
 		}
 
 		// Additional rate limiting by email (prevent spam with different IPs)
@@ -62,6 +81,9 @@ class AuthController extends Controller
 		}
 
 		try {
+			// Ensure session is started before setting session data
+			if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+
 			$userModel = new User();
 			$userId = $userModel->createUser([
 				'name' => $input['name'],
@@ -72,22 +94,29 @@ class AuthController extends Controller
 				'created_at' => date('Y-m-d H:i:s'),
 			]);
 
-			// Auto-login after successful registration
-			session_regenerate_id(true);
-			$_SESSION['user_id'] = $userId;
-			$_SESSION['user_role'] = 'customer';
-			$_SESSION['user_email'] = $input['email'];
-			$_SESSION['user_name'] = $input['name'];
-			$_SESSION['last_activity'] = time();
+			// After creating account, do NOT auto-login. Redirect to the login page instead.
+			// This ensures the user must explicitly sign in before accessing authenticated areas.
 
 			// Clear rate limits on successful registration
 			Middleware::clearRateLimit('register_ip_' . $clientIp);
 			Middleware::clearRateLimit('register_email_' . $input['email']);
 
-			return $this->json(['success' => true, 'message' => 'Account created successfully', 'redirect' => '/']);
+			// Respond JSON for AJAX, otherwise redirect to login with a success flash
+			$responsePayload = ['success' => true, 'message' => 'Account created. Please sign in.', 'redirect' => '/login'];
+			if ($this->request->isAjax()) {
+				return $this->json($responsePayload);
+			}
+
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('success', 'Account created. Please sign in.');
+			$this->redirect($responsePayload['redirect']);
+			return;
 		} catch (\Throwable $e) {
 			error_log("Registration error: " . $e->getMessage());
-			return $this->json(['success' => false, 'message' => 'Registration failed. Please try again.'], 500);
+			if ($this->request->isAjax()) {
+				return $this->json(['success' => false, 'message' => 'Registration failed. Please try again.'], 500);
+			}
+			return $this->view('customer.register', ['error' => 'Registration failed. Please try again.'], false);
 		}
 	}
 
@@ -96,14 +125,28 @@ class AuthController extends Controller
 	 */
 	public function showLogin()
 	{
-		// If already logged in, redirect to home
-		if (Middleware::ensureAuth()) {
-			header('Location: /');
-			exit;
+		// If logged in as admin, block customer routes and show informative message
+		if (Middleware::ensureAdmin()) {
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('info', "You're already logged in as an Admin.");
+			$this->redirect('/admin/dashboard');
+			return;
 		}
 
+		// If already logged in as customer, redirect to home
+		if (Middleware::ensureCustomer()) {
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('info', 'You are already logged in.');
+			$this->redirect('/');
+			return;
+		}
+
+		// Detect if the user was just registered and redirected here
+		$registered = (bool)$this->request->get('registered', false);
+
+		// Render the existing customer login view
 		try {
-			return $this->view('auth/login');
+			return $this->view('customer.login', ['registered' => $registered], false);
 		} catch (\Throwable $e) {
 			return $this->json(['form' => 'login']);
 		}
@@ -114,6 +157,14 @@ class AuthController extends Controller
 	 */
 	public function login()
 	{
+		// Prevent role switching: admin sessions cannot access customer login
+		if (Middleware::ensureAdmin()) {
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('info', "You're already logged in as an Admin.");
+			$this->redirect('/admin/dashboard');
+			return;
+		}
+
 		// Rate limiting by IP address (10 attempts per 15 minutes)
 		$clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 		if (!Middleware::rateLimit('login_ip_' . $clientIp, 10, 15)) {
@@ -122,13 +173,16 @@ class AuthController extends Controller
 
 		$input = $this->request->all();
 
-		$validator = Validator::make($input, [
-			'email' => 'required|email',
-			'password' => 'required|min:6',
-		]);
+		$validator = Validator::make($input, ValidationRules::login());
 
 		if ($validator->fails()) {
-			return $this->json(['success' => false, 'errors' => $validator->errors()], 422);
+			if ($this->request->isAjax()) {
+				return $this->json(['success' => false, 'errors' => $validator->errors()], 422);
+			}
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('errors', $validator->errors());
+			$this->redirect('/login');
+			return;
 		}
 
 		// Additional rate limiting by email (5 attempts per 15 minutes)
@@ -141,21 +195,43 @@ class AuthController extends Controller
 
 		// Reject admin accounts from customer login (admins use /admin/login)
 		if (!$user || ($user['role'] ?? null) === 'admin') {
-			return $this->json(['success' => false, 'message' => 'Invalid email or password'], 401);
+			if ($this->request->isAjax()) {
+				return $this->json(['success' => false, 'message' => 'Invalid email or password'], 401);
+			}
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('error', 'Invalid email or password.');
+			$this->redirect('/login');
+			return;
 		}
 
 		// Check if account is active
 		if (($user['status'] ?? null) !== 'active') {
-			return $this->json(['success' => false, 'message' => 'Your account is inactive. Please contact support.'], 403);
+			if ($this->request->isAjax()) {
+				return $this->json(['success' => false, 'message' => 'Your account is inactive. Please contact support.'], 403);
+			}
+			\App\Helpers\Session::start();
+			\App\Helpers\Session::flash('error', 'Your account is inactive. Please contact support.');
+			$this->redirect('/login');
+			return;
 		}
 
 		// Regenerate session ID to prevent session fixation
+		\App\Helpers\Session::start();
 		session_regenerate_id(true);
-		$_SESSION['user_id'] = (int)$user['id'];
-		$_SESSION['user_role'] = $user['role'];
-		$_SESSION['user_email'] = $user['email'];
+		$_SESSION['auth'] = [
+			'id' => (int)$user['id'],
+			'email' => $user['email'],
+			'role' => 'customer',
+		];
 		$_SESSION['user_name'] = $user['name'];
 		$_SESSION['last_activity'] = time();
+		// Remove legacy auth keys to avoid misuse
+		unset($_SESSION['user_id'], $_SESSION['user_role'], $_SESSION['user_email']);
+
+		// Ensure session is written to storage before continuing
+		if (session_status() === PHP_SESSION_ACTIVE) {
+			session_write_close();
+		}
 
 		// Clear rate limits on successful login
 		Middleware::clearRateLimit('login_ip_' . $clientIp);
@@ -164,7 +240,21 @@ class AuthController extends Controller
 		// Merge session cart with user's cart (if cart persistence is implemented)
 		$this->mergeSessionCartToUser($user['id']);
 
-		return $this->json(['success' => true, 'message' => 'Login successful', 'redirect' => '/']);
+		// Respond JSON for AJAX, otherwise perform a redirect
+		$redirect = $input['redirect'] ?? '/';
+		if (!is_string($redirect) || strpos($redirect, '/admin') === 0) {
+			$redirect = '/';
+		}
+		$responsePayload = ['success' => true, 'message' => 'Login successful', 'redirect' => $redirect];
+		if ($this->isAjax()) {
+			return $this->json($responsePayload);
+		}
+
+		// Non-AJAX: flash success and redirect to intended page
+		\App\Helpers\Session::start();
+		\App\Helpers\Session::flash('success', 'Login successful.');
+		$this->redirect($responsePayload['redirect']);
+		return;
 	}
 
 	/**
@@ -194,7 +284,16 @@ class AuthController extends Controller
 			session_destroy();
 		}
 
-		return $this->json(['success' => true, 'message' => 'Logged out successfully', 'redirect' => '/']);
+		// Respond JSON for AJAX, otherwise redirect to home
+		$response = ['success' => true, 'message' => 'Logged out successfully', 'redirect' => '/'];
+		if ($this->isAjax()) {
+			return $this->json($response);
+		}
+
+		\App\Helpers\Session::start();
+		\App\Helpers\Session::flash('success', 'Logged out successfully.');
+		$this->redirect('/');
+		return;
 	}
 
 	/**
@@ -203,7 +302,44 @@ class AuthController extends Controller
 	 */
 	private function mergeSessionCartToUser(int $userId): void
 	{
-		// TODO: Implement cart merge when cart persistence is added
-		// For now, session cart continues to work as-is
+		// Merge session cart into user's database cart and refresh session cart from DB
+		if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+
+		if (empty($_SESSION['cart'])) {
+			// No guest cart, just load user's cart into session
+			$cartCtrl = new \App\Controllers\CartController();
+			$cartCtrl->loadCartFromDatabase();
+			return;
+		}
+
+		// Normalize session cart to wrapped shape if needed
+		if (!isset($_SESSION['cart']['items'])) {
+			$old = $_SESSION['cart'];
+			$_SESSION['cart'] = ['items' => [], 'total_qty' => 0, 'total_price' => 0.0];
+			foreach ($old as $pid => $row) {
+				$pidInt = (int)$pid;
+				$qty = (int)($row['quantity'] ?? $row['qty'] ?? 0);
+				$price = (float)($row['price'] ?? 0);
+				$_SESSION['cart']['items'][$pidInt] = [
+					'product_id' => $pidInt,
+					'name' => $row['name'] ?? $row['title'] ?? '',
+					'price' => $price,
+					'quantity' => $qty,
+					'image' => $row['image'] ?? null,
+					'subtotal' => $price * $qty,
+				];
+			}
+		}
+
+		try {
+			$cartModel = new \App\Models\Cart();
+			$cartModel->mergeSessionCartTransactional($userId, $_SESSION['cart']['items']);
+
+			// Refresh session cart from DB
+			$cartCtrl = new \App\Controllers\CartController();
+			$cartCtrl->loadCartFromDatabase();
+		} catch (\PDOException $e) {
+			error_log('Failed to merge session cart to user cart: ' . $e->getMessage());
+		}
 	}
 }

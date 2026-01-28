@@ -61,7 +61,7 @@ class Order extends Model
 
             // Ensure order status fields default
             $orderData['order_status'] = $orderData['order_status'] ?? 'pending';
-            $orderData['payment_status'] = $orderData['payment_status'] ?? 'pending';
+            $orderData['payment_status'] = $orderData['payment_status'] ?? 'unpaid';
 
             $orderId = $this->create($orderData);
 
@@ -73,7 +73,7 @@ class Order extends Model
 
                 // Lock row for update to prevent race conditions
                 $stmt = $pdo->prepare("
-                    SELECT id, name, price, quantity, status 
+                    SELECT id, name, price, discount_price, quantity, status 
                     FROM products 
                     WHERE id = :id 
                     FOR UPDATE
@@ -106,7 +106,7 @@ class Order extends Model
                 ]);
 
                 $item['product_name'] = $item['product_name'] ?? $product['name'];
-                $item['price'] = $item['price'] ?? (float)$product['price'];
+                $item['price'] = $item['price'] ?? Product::effectivePrice($product);
                 $item['quantity'] = $requestedQty;
                 $item['total'] = $item['total'] ?? ($item['price'] * $requestedQty);
             }
@@ -131,6 +131,17 @@ class Order extends Model
         return $this->where('user_id', $userId);
     }
 
+    public function getByUserOrdered(int $userId, ?int $limit = null): array
+    {
+        $sql = "SELECT * FROM `{$this->table}` WHERE `user_id` = :uid ORDER BY `updated_at` DESC";
+        if ($limit !== null) {
+            $limit = max(1, (int)$limit);
+            $sql .= " LIMIT {$limit}";
+        }
+        $stmt = $this->query($sql, ['uid' => $userId]);
+        return $stmt->fetchAll();
+    }
+
     /**
      * Get order items with product details
      * 
@@ -139,7 +150,12 @@ class Order extends Model
      */
     public function getOrderItems(int $orderId): array
     {
-        $sql = "SELECT oi.*, p.name as product_name, p.image as product_image, p.slug as product_slug
+        $skuSelect = 'NULL as product_sku';
+        if ($this->columnExists('products', 'sku')) {
+            $skuSelect = 'p.sku as product_sku';
+        }
+
+        $sql = "SELECT oi.*, p.name as product_name, p.image as product_image, p.slug as product_slug, {$skuSelect}
                 FROM order_items oi
                 INNER JOIN products p ON oi.product_id = p.id
                 WHERE oi.order_id = :order_id
@@ -147,5 +163,105 @@ class Order extends Model
         
         $stmt = $this->query($sql, ['order_id' => $orderId]);
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Check whether a user has at least one completed order that includes the given product
+     */
+    public function userHasCompletedOrderWithProduct(int $userId, int $productId, array $allowedStatuses = ['completed']): bool
+    {
+        // Build dynamic IN clause for allowed statuses (order_status only)
+        $placeholders = implode(',', array_fill(0, count($allowedStatuses), '?'));
+        $params = array_merge([$userId], $allowedStatuses, [$productId]);
+
+        $sql = "SELECT COUNT(*) as cnt FROM orders o INNER JOIN order_items oi ON oi.order_id = o.id WHERE o.user_id = ? AND LOWER(TRIM(o.order_status)) IN ({$placeholders}) AND oi.product_id = ?";
+        $stmt = self::getPDO()->prepare($sql);
+        $stmt->execute($params);
+        $row = $stmt->fetch();
+        return (int)($row['cnt'] ?? 0) > 0;
+    }
+
+    /**
+     * Find first completed order ID for user that contains the given product
+     * Used for review eligibility
+     * 
+     * @param int $userId User ID
+     * @param int $productId Product ID
+     * @param array $allowedStatuses Array of allowed order statuses
+     * @return int|null Order ID or null if not found
+     */
+    public function findCandidateOrderForReview(int $userId, int $productId, array $allowedStatuses = ['completed', 'paid']): ?int
+    {
+        $placeholders = implode(',', array_fill(0, count($allowedStatuses), '?'));
+        $params = array_merge([$userId], $allowedStatuses, [$productId]);
+        
+        $sql = "SELECT o.id 
+                FROM orders o 
+                INNER JOIN order_items oi ON oi.order_id = o.id 
+                WHERE o.user_id = ? 
+                  AND LOWER(TRIM(o.order_status)) IN ({$placeholders}) 
+                  AND oi.product_id = ? 
+                LIMIT 1";
+        
+        $stmt = self::getPDO()->prepare($sql);
+        $stmt->execute($params);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        return $row ? (int)$row['id'] : null;
+    }
+
+    /**
+     * Verify order belongs to user and has the required status
+     * 
+     * @param int $orderId Order ID
+     * @param int $userId User ID
+     * @param array $allowedStatuses Array of allowed order statuses
+     * @return bool True if order is valid and eligible
+     */
+    public function verifyOrderEligibility(int $orderId, int $userId, array $allowedStatuses = ['completed', 'paid']): bool
+    {
+        $placeholders = implode(',', array_fill(0, count($allowedStatuses), '?'));
+        $params = array_merge([$orderId, $userId], $allowedStatuses);
+        
+        $sql = "SELECT o.id 
+                FROM orders o 
+                WHERE o.id = ? 
+                  AND o.user_id = ? 
+                  AND LOWER(TRIM(o.order_status)) IN ({$placeholders}) 
+                LIMIT 1";
+        
+        $stmt = self::getPDO()->prepare($sql);
+        $stmt->execute($params);
+        
+        return (bool)$stmt->fetch(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Check if order contains the given product
+     * 
+     * @param int $orderId Order ID
+     * @param int $productId Product ID
+     * @return bool True if order contains the product
+     */
+    public function orderContainsProduct(int $orderId, int $productId): bool
+    {
+        $stmt = self::getPDO()->prepare('SELECT COUNT(*) as cnt FROM order_items WHERE order_id = ? AND product_id = ?');
+        $stmt->execute([$orderId, $productId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        return (int)($row['cnt'] ?? 0) > 0;
+    }
+
+    /**
+     * Check if a column exists in the given table
+     */
+    private function columnExists(string $table, string $column): bool
+    {
+        if (!preg_match('/^[a-z0-9_]+$/i', $table) || !preg_match('/^[a-z0-9_]+$/i', $column)) {
+            return false;
+        }
+
+        $stmt = $this->query("SHOW COLUMNS FROM `{$table}` LIKE '{$column}'");
+        return (bool)$stmt->fetch();
     }
 }

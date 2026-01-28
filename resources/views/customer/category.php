@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Browse categories and featured picks">
+  <meta name="csrf-token" content="<?= csrf_token() ?>">
   <title>Categories</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -22,8 +23,8 @@
       <div class="container">
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Categories</li>
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item active" aria-current="page"><?= $category['name'] ?? 'Categories' ?></li>
           </ol>
         </nav>
 
@@ -88,119 +89,65 @@
 
           <div class="shop-content">
             <div class="shop-toolbar">
-              <h2 class="section-title m-0">Featured Picks</h2>
+              <h2 class="section-title m-0"><?= $category['name'] ?? 'Featured Picks' ?></h2>
               <div class="d-flex align-items-center gap-2">
-                <span class="text-muted">6 results</span>
+                <span class="text-muted"><?= count($products ?? []) ?> results</span>
               </div>
             </div>
 
             <!-- TODO: replace with category product list from database -->
             <div class="shop-grid">
-              <article class="product-card">
-                <div class="product-badge">
-                  <i class="bi bi-lightning-charge"></i>
-                  Hot
-                </div>
-                <div class="product-card__image">
-                  <img src="../assets/images/laptop.png" alt="Laptop">
-                </div>
-                <h3 class="product-card__title">Asus Zenbook UX-430 US</h3>
-                <p class="product-card__price">$1,299</p>
-                <div class="product-card__meta" aria-label="Rating 4.8 out of 5">
-                  <i class="bi bi-star-fill text-warning"></i>
-                  <span>4.8</span>
-                  <span> 21K reviews</span>
-                </div>
-                <div class="product-card__actions">
-                  <a class="btn btn-primary rounded-pill" href="product.php?id=asus-ux430">View Details</a>
-                  <button class="btn btn-outline-primary rounded-pill" type="button" data-add-to-cart data-product-id="asus-ux430" data-product-name="Asus Zenbook UX-430 US" data-product-price="1299" data-product-image="../assets/images/laptop.png">Buy</button>
-                </div>
-              </article>
-
-              <article class="product-card">
-                <div class="product-card__image">
-                  <img src="../assets/images/headphone.png" alt="Headphone">
-                </div>
-                <h3 class="product-card__title">Audio Technica ATH M20 BT</h3>
-                <p class="product-card__price">$199</p>
-                <div class="product-card__meta" aria-label="Rating 5.0 out of 5">
-                  <i class="bi bi-star-fill text-warning"></i>
-                  <span>5.0</span>
-                  <span> 300K reviews</span>
-                </div>
-                <div class="product-card__actions">
-                  <a class="btn btn-primary rounded-pill" href="product.php?id=audio-ath-m20">View Details</a>
-                  <button class="btn btn-outline-primary rounded-pill" type="button" data-add-to-cart data-product-id="audio-ath-m20" data-product-name="Audio Technica ATH M20 BT" data-product-price="199" data-product-image="../assets/images/headphone.png">Buy</button>
-                </div>
-              </article>
-
-              <article class="product-card">
-                <div class="product-card__image">
-                  <img src="../assets/images/cream.png" alt="SK II Cream">
-                </div>
-                <h3 class="product-card__title">SK II - Anti Aging Cream</h3>
-                <p class="product-card__price">$79</p>
-                <div class="product-card__meta" aria-label="Rating 4.9 out of 5">
-                  <i class="bi bi-star-fill text-warning"></i>
-                  <span>4.9</span>
-                  <span> 89K reviews</span>
-                </div>
-                <div class="product-card__actions">
-                  <a class="btn btn-primary rounded-pill" href="product.php?id=sk-ii-cream">View Details</a>
-                  <button class="btn btn-outline-primary rounded-pill" type="button" data-add-to-cart data-product-id="sk-ii-cream" data-product-name="SK II - Anti Aging Cream" data-product-price="79" data-product-image="../assets/images/cream.png">Buy</button>
-                </div>
-              </article>
-
-              <article class="product-card">
-                <div class="product-card__image">
-                  <img src="../assets/images/blender.png" alt="Blender">
-                </div>
-                <h3 class="product-card__title">Modena Juice Blender</h3>
-                <p class="product-card__price">$129</p>
-                <div class="product-card__meta" aria-label="Rating 4.8 out of 5">
-                  <i class="bi bi-star-fill text-warning"></i>
-                  <span>4.8</span>
-                  <span> 871 reviews</span>
-                </div>
-                <div class="product-card__actions">
-                  <a class="btn btn-primary rounded-pill" href="product.php?id=modena-blender">View Details</a>
-                  <button class="btn btn-outline-primary rounded-pill" type="button" data-add-to-cart data-product-id="modena-blender" data-product-name="Modena Juice Blender" data-product-price="129" data-product-image="../assets/images/blender.png">Buy</button>
-                </div>
-              </article>
-
-              <article class="product-card">
-                <div class="product-card__image">
-                  <img src="../assets/images/acer.png" alt="Acer Swift">
-                </div>
-                <h3 class="product-card__title">Acer Swift Air SF-313</h3>
-                <p class="product-card__price">$999</p>
-                <div class="product-card__meta" aria-label="Rating 4.7 out of 5">
-                  <i class="bi bi-star-fill text-warning"></i>
-                  <span>4.7</span>
-                  <span> 12K reviews</span>
-                </div>
-                <div class="product-card__actions">
-                  <a class="btn btn-primary rounded-pill" href="product.php?id=acer-swift">View Details</a>
-                  <button class="btn btn-outline-primary rounded-pill" type="button" data-add-to-cart data-product-id="acer-swift" data-product-name="Acer Swift Air SF-313" data-product-price="999" data-product-image="../assets/images/acer.png">Buy</button>
-                </div>
-              </article>
-
-              <article class="product-card">
-                <div class="product-card__image">
-                  <img src="../assets/images/iphone.png" alt="iPhone">
-                </div>
-                <h3 class="product-card__title">iPhone 11 Pro Max</h3>
-                <p class="product-card__price">$1,099</p>
-                <div class="product-card__meta" aria-label="Rating 4.9 out of 5">
-                  <i class="bi bi-star-fill text-warning"></i>
-                  <span>4.9</span>
-                  <span> 1.2K reviews</span>
-                </div>
-                <div class="product-card__actions">
-                  <a class="btn btn-primary rounded-pill" href="product.php?id=iphone-11-pro">View Details</a>
-                  <button class="btn btn-outline-primary rounded-pill" type="button" data-add-to-cart data-product-id="iphone-11-pro" data-product-name="iPhone 11 Pro Max" data-product-price="1099" data-product-image="../assets/images/iphone.png">Buy</button>
-                </div>
-              </article>
+              <?php if (!empty($products) && is_array($products)): ?>
+                <?php foreach ($products as $p): ?>
+                  <?php $stockOut = ((int)($p['quantity'] ?? 0)) <= 0; ?>
+                  <article class="product-card">
+                    <?php if (!empty($p['featured'])): ?>
+                      <div class="product-badge">
+                        <i class="bi bi-lightning-charge"></i>
+                        Hot
+                      </div>
+                    <?php endif; ?>
+                    <div class="product-card__image">
+                      <img src="<?= $p['image'] ?? '../assets/images/laptop.png' ?>" alt="<?= $p['name'] ?? '' ?>">
+                    </div>
+                    <h3 class="product-card__title"><?= $p['name'] ?? '' ?></h3>
+                    <?php if (!empty($p['has_discount'])): ?>
+                      <p class="product-card__price"><span class="text-muted text-decoration-line-through">$<?= number_format((float)($p['price'] ?? 0), 0, '.', ',') ?></span> <span class="text-primary fw-semibold">$<?= number_format((float)($p['effective_price'] ?? $p['price'] ?? 0), 0, '.', ',') ?></span></p>
+                    <?php else: ?>
+                      <p class="product-card__price">$<?= number_format((float)($p['effective_price'] ?? $p['price'] ?? 0), 0, '.', ',') ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($p['short_description'])): ?>
+                      <p class="text-muted mb-2"><?= e($p['short_description']) ?></p>
+                    <?php endif; ?>
+                    <?php
+                      $avg = (float)($p['avg_rating'] ?? 0);
+                      $count = (int)($p['review_count'] ?? 0);
+                      $full = (int)floor($avg);
+                      $frac = $avg - $full;
+                      $half = ($frac >= 0.25 && $frac < 0.75) ? 1 : 0;
+                      if ($frac >= 0.75) { $full++; }
+                      $empty = max(0, 5 - $full - $half);
+                    ?>
+                    <div class="product-card__meta" aria-label="Rating <?= number_format($avg, 1) ?> out of 5">
+                      <?php for ($i = 0; $i < $full; $i++): ?>
+                        <i class="bi bi-star-fill text-warning"></i>
+                      <?php endfor; ?>
+                      <?php if ($half): ?>
+                        <i class="bi bi-star-half text-warning"></i>
+                      <?php endif; ?>
+                      <?php for ($i = 0; $i < $empty; $i++): ?>
+                        <i class="bi bi-star text-warning"></i>
+                      <?php endfor; ?>
+                      <span><?= number_format($avg, 1) ?></span>
+                      <span> <?= $count ?> reviews</span>
+                    </div>
+                    <div class="product-card__actions">
+                      <a class="btn btn-primary rounded-pill" href="/product/<?= rawurlencode($p['slug'] ?? '') ?>">View Details</a>
+                      <button class="btn btn-outline-primary rounded-pill" type="button" data-add-to-cart data-product-id="<?= (int)$p['id'] ?>" data-product-name="<?= $p['name'] ?? '' ?>" data-product-price="<?= $p['effective_price'] ?? $p['price'] ?? 0 ?>" data-product-image="<?= $p['image'] ?? '../assets/images/laptop.png' ?>" <?= $stockOut ? 'disabled' : '' ?>><?= $stockOut ? 'Out of Stock' : 'Buy' ?></button>
+                    </div>
+                  </article>
+                <?php endforeach; ?>
+              <?php endif; ?>
             </div>
 
             <nav aria-label="Category pagination" class="d-flex justify-content-center mt-4">

@@ -1,0 +1,14 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Redirect all requests to index.php except for existing files/directories
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Increase upload limits (Apache + mod_php)
+php_value upload_max_filesize 12M
+php_value post_max_size 24M
+php_value max_file_uploads 20
+php_value memory_limit 256M

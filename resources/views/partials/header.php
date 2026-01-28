@@ -11,6 +11,9 @@
         </div>
       </div>
 
+      <!-- Middle welcome text for logged-in users -->
+
+
       <!-- Mobile Toggle -->
       <button 
         class="navbar-toggler" 
@@ -53,17 +56,18 @@
       <div class="collapse navbar-collapse" id="navMenu">
         <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-3 gap-2">
           <li class="nav-item">
-            <a class="nav-link <?php echo nav_active('index'); ?>" href="index.php"<?php echo nav_aria('index'); ?>>Home</a>
+            <a class="nav-link <?php echo nav_active('index'); ?>" href="/"<?php echo nav_aria('index'); ?>>Home</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link <?php echo nav_active('shop'); ?>" href="shop.php"<?php echo nav_aria('shop'); ?>>Shop</a>
+            <a class="nav-link <?php echo nav_active('shop'); ?>" href="/shop"<?php echo nav_aria('shop'); ?>>Shop</a>
           </li>
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle <?php echo nav_active('index'); ?>" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Pages</a>
             <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="index.php#about">Why Choose Us</a></li>
-              <li><a class="dropdown-item" href="index.php#site-footer">About</a></li>
-              <li><a class="dropdown-item <?php echo nav_active('contact'); ?>" href="contact.php"<?php echo nav_aria('contact'); ?>>Contact</a></li>
+              <li><a class="dropdown-item <?php echo nav_active('profile'); ?>" href="/profile"<?php echo nav_aria('profile'); ?>>profile</a></li>
+              <li><a class="dropdown-item" href="/#site-footer">About</a></li>
+              <li><a class="dropdown-item" href="/#about">Why Choose Us</a></li>
+              <li><a class="dropdown-item <?php echo nav_active('contact'); ?>" href="/contact"<?php echo nav_aria('contact'); ?>>Contact</a></li>
             </ul>
           </li>
           <li class="nav-item">
@@ -73,10 +77,19 @@
             </button>
           </li>
           <li class="nav-item mt-2 mt-lg-0">
-            <a href="login.php" class="btn btn-outline-primary px-4 rounded-pill">Sign In</a>
+            <?php if (!empty($_SESSION['auth']) && ($_SESSION['auth']['role'] ?? null) === 'customer'): ?>
+              <a href="#" class="btn btn-outline-primary px-4 rounded-pill" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">Logout</a>
+              <form id="logout-form" action="/logout" method="post" style="display:none;">
+                <input type="hidden" name="_token" value="<?= csrf_token() ?>">
+              </form>
+            <?php else: ?>
+              <a href="/login" class="btn btn-outline-primary px-4 rounded-pill">Sign In</a>
+            <?php endif; ?>
           </li>
         </ul>
       </div>
     </div>
   </nav>
 </header>
+
+<?php \App\Core\Views::partial('partials.flash'); ?>

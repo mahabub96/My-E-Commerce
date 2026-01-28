@@ -10,6 +10,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 
   <link rel="stylesheet" href="../assets/css/style-refactored.css">
+  <link rel="stylesheet" href="../assets/css/cart.css">
 </head>
 <body style="background-color: #eaf7fb;">
   <!-- ================= NAVBAR ================= -->

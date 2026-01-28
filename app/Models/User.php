@@ -93,4 +93,21 @@ class User extends Model
 
         return $this->create($data);
     }
+
+    /**
+     * Update user's password by user ID
+     * Automatically hashes the password
+     * 
+     * @param int $userId User ID
+     * @param string $newPassword New password (plain text)
+     * @return bool Success status
+     */
+    public function updatePassword(int $userId, string $newPassword): bool
+    {
+        $pdo = self::getPDO();
+        $hashedPassword = $this->hashPassword($newPassword);
+        
+        $stmt = $pdo->prepare("UPDATE {$this->table} SET password = :password, updated_at = NOW() WHERE id = :id");
+        return $stmt->execute(['password' => $hashedPassword, 'id' => $userId]);
+    }
 }

@@ -1,0 +1,1 @@
+// Customer login uses standard form POST to allow server-side flash + redirect.

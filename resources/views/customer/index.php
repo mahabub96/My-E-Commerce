@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Browse millions of products for your needs - E-Commerce Store">
+  <meta name="csrf-token" content="<?= csrf_token() ?>">
   <title>E-Commerce Landing</title>
 
   <!-- Bootstrap 5 -->
@@ -64,7 +65,7 @@
             <div class="deal-card__content">
               <span class="deal-card__tag">Weekly Deals</span>
               <h3 class="deal-card__title">Free Delivery</h3>
-              <a href="shop.php" class="deal-card__link">Learn More →</a>
+              <a href="/shop" class="deal-card__link">Learn More →</a>
             </div>
             <img
               src="../assets/images/Delivery.png"
@@ -80,7 +81,7 @@
             <article class="deal-card deal-card--horizontal">
               <div class="deal-card__content">
                 <h3 class="deal-card__subtitle">Disc Up to 25%</h3>
-                <a href="shop.php" class="deal-card__link">Learn More →</a>
+                <a href="/shop" class="deal-card__link">Learn More →</a>
               </div>
               <img
                 src="../assets/images/Shopping Cart Mobile.png"
@@ -93,7 +94,7 @@
             <article class="deal-card deal-card--horizontal deal-card--reverse">
               <div class="deal-card__content">
                 <h3 class="deal-card__subtitle">Free 5GB<br>Data</h3>
-                <a href="shop.php" class="deal-card__link">Learn More →</a>
+                <a href="/shop" class="deal-card__link">Learn More →</a>
               </div>
                 <img
                 src="../assets/images/Call Center.png"
@@ -108,7 +109,7 @@
           <article class="deal-card deal-card--vertical">
             <div class="deal-card__content text-center">
               <h3 class="deal-card__subtitle">Anniversary<br>Monthly Deals</h3>
-              <a href="shop.php" class="">Learn More →</a>
+              <a href="/shop" class="">Learn More →</a>
             </div>
             <img
               src="../assets/images/Welcome Screen For E Commerce.png"
@@ -132,7 +133,7 @@
         <!-- Section Header -->
         <header class="section-header">
           <h2 id="categories-title" class="section-title">Categories</h2>
-          <a href="shop.php" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+          <a href="/shop" class="btn btn-outline-primary btn-sm rounded-pill px-3">
             Show All
           </a>
         </header>
@@ -140,56 +141,26 @@
         <!-- Category Grid -->
         <!-- TODO: replace categories with dynamic categories from database -->
         <div class="categories-grid" role="list">
-          
-          <article class="category-card" role="listitem">
-            <img src="../assets/images/Fashion.svg" alt="" aria-hidden="true" width="40" height="40">
-            <h3 class="category-card__title">Fashion</h3>
-            <p class="category-card__count">290K Items</p>
-          </article>
-
-          <article class="category-card" role="listitem">
-            <img src="../assets/images/mobile.svg" alt="" aria-hidden="true" width="40" height="40">
-            <h3 class="category-card__title">Handphone</h3>
-            <p class="category-card__count">3M Items</p>
-          </article>
-
-          <article class="category-card category-card--featured" role="listitem">
-            <img src="../assets/images/iconspace_Notebook.svg" alt="" aria-hidden="true" width="40" height="40">
-            <h3 class="category-card__title">Laptop</h3>
-            <p class="category-card__count">1.2M Items</p>
-          </article>
-
-          <article class="category-card" role="listitem">
-            <img src="../assets/images/music.svg" alt="" aria-hidden="true" width="40" height="40">
-            <h3 class="category-card__title">Music</h3>
-            <p class="category-card__count">751K Items</p>
-          </article>
-
-          <article class="category-card" role="listitem">
-            <img src="../assets/images/cammera.svg" alt="" aria-hidden="true" width="40" height="40">
-            <h3 class="category-card__title">Photography</h3>
-            <p class="category-card__count">1.0M Items</p>
-          </article>
-
-          <article class="category-card" role="listitem">
-            <img src="../assets/images/Furniture.svg" alt="" aria-hidden="true" width="40" height="40">
-            <h3 class="category-card__title">Furniture</h3>
-            <p class="category-card__count">88K Items</p>
-          </article>
-
-          <article class="category-card" role="listitem">
-            <img src="../assets/images/health.svg" alt="" aria-hidden="true" width="40" height="40">
-            <h3 class="category-card__title">Health</h3>
-            <p class="category-card__count">761K Items</p>
-          </article>
-
-          <article class="category-card" role="listitem">
-            <img src="../assets/images/Soccer Ball.svg" alt="" aria-hidden="true" width="40" height="40">
-            <h3 class="category-card__title">Sports</h3>
-            <p class="category-card__count">2.9K Items</p>
-          </article>
-
-        </div>
+          <?php if (!empty($categories) && is_array($categories)): ?>
+            <?php foreach ($categories as $cat): ?>
+              <?php $iconSrc = $cat['icon_url'] ?? ($cat['image'] ?? '/assets/images/Fashion.svg'); ?>
+              <?php if (empty($iconSrc)) { $iconSrc = '/assets/images/Fashion.svg'; } ?>
+              <?php $iconSrc = preg_match('#^https?://#i', $iconSrc) || strpos($iconSrc, '/') === 0 ? $iconSrc : ('/' . ltrim($iconSrc, '/')); ?>
+              <article class="category-card" role="listitem">
+                <img src="<?= $iconSrc ?>" alt="" aria-hidden="true" width="40" height="40">
+                <h3 class="category-card__title"><?= $cat['name'] ?></h3>
+                <p class="category-card__count"><?= (int)($cat['product_count'] ?? 0) ?> Items</p>
+              </article>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <!-- Fallback to a single placeholder to preserve layout -->
+            <article class="category-card" role="listitem">
+              <img src="" alt="" aria-hidden="true" width="40" height="40">
+              <h3 class="category-card__title">General</h3>
+              <p class="category-card__count">0 Items</p>
+            </article>
+          <?php endif; ?>
+        </div> 
       </div>
     </section>
 
@@ -204,7 +175,7 @@
         <!-- Section Header -->
         <header class="section-header">
           <h2 id="recommended-title" class="section-title">Recommended for You</h2>
-          <a href="shop.php" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+          <a href="/shop" class="btn btn-outline-primary btn-sm rounded-pill px-3">
             Show All
           </a>
         </header>
@@ -212,44 +183,29 @@
         <!-- TODO: replace with real products from database -->
         <!-- Recommended Cards -->
         <div class="recommended-grid">
-          
-          <article class="recommend-card">
-            <div class="recommend-card__image bg-light-blue">
-              <img src="../assets/images/cream.png" alt="Anti Aging Cream" loading="lazy">
-            </div>
-            <p class="recommend-card__text">
-              The best Anti Aging Cream with cheap price
-            </p>
-          </article>
-
-          <article class="recommend-card">
-            <div class="recommend-card__image bg-light-cyan">
-              <img src="../assets/images/headphone.png" alt="Gaming Headphone" loading="lazy">
-            </div>
-            <p class="recommend-card__text">
-              Best budget Headphone for RPG Gamers
-            </p>
-          </article>
-
-          <article class="recommend-card">
-            <div class="recommend-card__image bg-light-yellow">
-              <img src="../assets/images/laptop.png" alt="Laptop" loading="lazy">
-            </div>
-            <p class="recommend-card__text">
-              Have a much project? You must have this Savage Laptop
-            </p>
-          </article>
-
-          <article class="recommend-card">
-            <div class="recommend-card__image bg-light-green">
-              <img src="../assets/images/blender.png" alt="Juice Blender" loading="lazy">
-            </div>
-            <p class="recommend-card__text">
-              Bored work from home? You can make a juice for your health
-            </p>
-          </article>
-
-        </div>
+          <?php if (!empty($recommended) && is_array($recommended)): ?>
+            <?php foreach ($recommended as $p): ?>
+              <?php $stockOut = ((int)($p['quantity'] ?? 0)) <= 0; ?>
+              <article class="recommend-card">
+                <div class="recommend-card__image bg-light-blue">
+                  <img src="<?= $p['image'] ?? '../assets/images/cream.png' ?>" alt="<?= $p['name'] ?>" loading="lazy">
+                </div>
+                <p class="recommend-card__text">
+                  <?= $p['name'] ?><?= $stockOut ? ' • Out of Stock' : '' ?>
+                </p>
+              </article>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <article class="recommend-card">
+              <div class="recommend-card__image bg-light-blue">
+                <img src="../assets/images/cream.png" alt="Anti Aging Cream" loading="lazy">
+              </div>
+              <p class="recommend-card__text">
+                The best Anti Aging Cream with cheap price
+              </p>
+            </article>
+          <?php endif; ?>
+        </div> 
 
         <!-- Section Divider -->
         <hr class="section-divider">
@@ -369,84 +325,68 @@
         <!-- Product List -->
         <!-- TODO: replace with dynamic "most sold" products later -->
         <div class="most-sold-list">
-          
-          <article class="product-row">
-            <img src="../assets/images/laptop.png" class="product-row__image" alt="Asus Zenbook" loading="lazy">
-            <div class="product-row__info">
-              <h3 class="product-row__title">Asus Zenbook UX-430 US</h3>
-              <div class="product-row__rating" aria-label="Rating 4.8 out of 5">
-                <span class="product-row__score">4,8</span>
-                <span class="product-row__stars" aria-hidden="true">★★★★☆</span>
+          <?php if (!empty($most_sold) && is_array($most_sold)): ?>
+            <?php foreach ($most_sold as $p): ?>
+              <?php $stockOut = ((int)($p['quantity'] ?? 0)) <= 0; ?>
+              <article class="product-row">
+                <img src="<?= $p['image'] ?? '../assets/images/laptop.png' ?>" class="product-row__image" alt="<?= $p['name'] ?>" loading="lazy">
+                <div class="product-row__info">
+                  <h3 class="product-row__title"><?= $p['name'] ?></h3>
+                  <?php
+                    $avg = (float)($p['avg_rating'] ?? 0);
+                    $count = (int)($p['review_count'] ?? 0);
+                    $full = (int)floor($avg);
+                    $frac = $avg - $full;
+                    $half = ($frac >= 0.25 && $frac < 0.75) ? 1 : 0;
+                    if ($frac >= 0.75) { $full++; }
+                    $empty = max(0, 5 - $full - $half);
+                  ?>
+                  <div class="product-row__rating" aria-label="Rating <?= number_format($avg, 1) ?> out of 5">
+                    <?php for ($i = 0; $i < $full; $i++): ?>
+                      <i class="bi bi-star-fill text-warning"></i>
+                    <?php endfor; ?>
+                    <?php if ($half): ?>
+                      <i class="bi bi-star-half text-warning"></i>
+                    <?php endif; ?>
+                    <?php for ($i = 0; $i < $empty; $i++): ?>
+                      <i class="bi bi-star text-warning"></i>
+                    <?php endfor; ?>
+                    <span class="ms-2 product-row__score"><?= number_format($avg, 1) ?></span>
+                  </div>
+                  <small class="product-row__reviews"><?= $count ?> reviews</small>
+                </div>
+                <div class="product-row__actions">
+                  <a href="/product/<?= rawurlencode($p['slug']) ?>" class="btn btn-primary btn-sm rounded-pill">Read Reviews</a>
+                  <button class="btn btn-outline-primary btn-sm rounded-pill" type="button" data-add-to-cart data-product-id="<?= (int)$p['id'] ?>" data-product-name="<?= $p['name'] ?>" data-product-price="<?= $p['effective_price'] ?? $p['price'] ?>" data-product-image="<?= $p['image'] ?? '../assets/images/laptop.png' ?>" <?= $stockOut ? 'disabled' : '' ?>>
+                    <i class="bi bi-cart" aria-hidden="true"></i> <?= $stockOut ? 'Out of Stock' : 'Buy' ?>
+                  </button>
+                </div>
+              </article>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <article class="product-row">
+              <img src="../assets/images/laptop.png" class="product-row__image" alt="Asus Zenbook" loading="lazy">
+              <div class="product-row__info">
+                <h3 class="product-row__title">Asus Zenbook UX-430 US</h3>
+                <div class="product-row__rating" aria-label="Rating 4.8 out of 5">
+                  <span class="product-row__score">4,8</span>
+                  <span class="product-row__stars" aria-hidden="true">★★★★☆</span>
+                </div>
+                <small class="product-row__reviews">21K Total Reviews</small>
               </div>
-              <small class="product-row__reviews">21K Total Reviews</small>
-            </div>
-            <div class="product-row__actions">
-              <a href="product.php?id=asus-ux430" class="btn btn-primary btn-sm rounded-pill">Read Reviews</a>
-              <button class="btn btn-outline-primary btn-sm rounded-pill" type="button" data-add-to-cart data-product-id="asus-ux430" data-product-name="Asus Zenbook UX-430 US" data-product-price="1299" data-product-image="../assets/images/laptop.png">
-                <i class="bi bi-cart" aria-hidden="true"></i> Buy
-              </button>
-            </div>
-          </article>
-
-          <article class="product-row">
-            <img src="../assets/images/headphone.png" class="product-row__image" alt="Audio Technica Headphone" loading="lazy">
-            <div class="product-row__info">
-              <h3 class="product-row__title">Audio Technica ATH M20 BT</h3>
-              <div class="product-row__rating" aria-label="Rating 5.0 out of 5">
-                <span class="product-row__score">5,0</span>
-                <span class="product-row__stars" aria-hidden="true">★★★★★</span>
+              <div class="product-row__actions">
+                <a href="/product/asus-ux430" class="btn btn-primary btn-sm rounded-pill">Read Reviews</a>
+                <button class="btn btn-outline-primary btn-sm rounded-pill" type="button" data-add-to-cart data-product-id="asus-ux430" data-product-name="Asus Zenbook UX-430 US" data-product-price="1299" data-product-image="../assets/images/laptop.png">
+                  <i class="bi bi-cart" aria-hidden="true"></i> Buy
+                </button>
               </div>
-              <small class="product-row__reviews">300K Total Reviews</small>
-            </div>
-            <div class="product-row__actions">
-              <a href="product.php?id=audio-ath-m20" class="btn btn-primary btn-sm rounded-pill">Read Reviews</a>
-              <button class="btn btn-outline-primary btn-sm rounded-pill" type="button" data-add-to-cart data-product-id="audio-ath-m20" data-product-name="Audio Technica ATH M20 BT" data-product-price="199" data-product-image="../assets/images/headphone.png">
-                <i class="bi bi-cart" aria-hidden="true"></i> Buy
-              </button>
-            </div>
-          </article>
-
-          <article class="product-row">
-            <img src="../assets/images/cream.png" class="product-row__image" alt="SK II Cream" loading="lazy">
-            <div class="product-row__info">
-              <h3 class="product-row__title">SK II - Anti Aging Cream</h3>
-              <div class="product-row__rating" aria-label="Rating 4.9 out of 5">
-                <span class="product-row__score">4,9</span>
-                <span class="product-row__stars" aria-hidden="true">★★★★☆</span>
-              </div>
-              <small class="product-row__reviews">89K Total Reviews</small>
-            </div>
-            <div class="product-row__actions">
-              <a href="product.php?id=sk-ii-cream" class="btn btn-primary btn-sm rounded-pill">Read Reviews</a>
-              <button class="btn btn-outline-primary btn-sm rounded-pill" type="button" data-add-to-cart data-product-id="sk-ii-cream" data-product-name="SK II - Anti Aging Cream" data-product-price="79" data-product-image="../assets/images/cream.png">
-                <i class="bi bi-cart" aria-hidden="true"></i> Buy
-              </button>
-            </div>
-          </article>
-
-          <article class="product-row">
-            <img src="../assets/images/blender.png" class="product-row__image" alt="Modena Blender" loading="lazy">
-            <div class="product-row__info">
-              <h3 class="product-row__title">Modena Juice Blender</h3>
-              <div class="product-row__rating" aria-label="Rating 4.8 out of 5">
-                <span class="product-row__score">4,8</span>
-                <span class="product-row__stars" aria-hidden="true">★★★★☆</span>
-              </div>
-              <small class="product-row__reviews">871 Total Reviews</small>
-            </div>
-            <div class="product-row__actions">
-              <a href="product.php?id=modena-blender" class="btn btn-primary btn-sm rounded-pill">Read Reviews</a>
-              <button class="btn btn-outline-primary btn-sm rounded-pill" type="button" data-add-to-cart data-product-id="modena-blender" data-product-name="Modena Juice Blender" data-product-price="129" data-product-image="../assets/images/blender.png">
-                <i class="bi bi-cart" aria-hidden="true"></i> Buy
-              </button>
-            </div>
-          </article>
-
+            </article>
+          <?php endif; ?>
         </div>
 
         <!-- Footer Link -->
         <div class="text-center mt-4">
-          <a href="shop.php" class="link-primary fw-medium">See full Leaderboards</a>
+          <a href="/shop" class="link-primary fw-medium">See full Leaderboards</a>
         </div>
       </div>
     </section>
@@ -462,7 +402,7 @@
         <!-- Section Header -->
         <header class="section-header">
           <h2 id="compare-title" class="section-title">Compare the Product</h2>
-          <a href="shop.php" class="btn btn-outline-primary btn-sm rounded-pill px-4">
+          <a href="/shop" class="btn btn-outline-primary btn-sm rounded-pill px-4">
             + New Comparison
           </a>
         </header>
@@ -663,3 +603,6 @@
     Consistent spacing and typography across breakpoints
   -->
   <?php include __DIR__ . '/../partials/footer.php'; ?>
+  
+  <!-- Live Search Script -->
+  <script src="../assets/js/search.js"></script>

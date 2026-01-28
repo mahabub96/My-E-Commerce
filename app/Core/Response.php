@@ -21,6 +21,11 @@ class Response
      */
     public function redirect(string $url): void
     {
+        // In CLI (tests/scripts), avoid exiting so test harness can continue
+        if (php_sapi_name() === 'cli') {
+            echo "Redirect (CLI): $url\n";
+            return;
+        }
         if (!headers_sent()) {
             header('Location: ' . $url, true, 302);
         }
@@ -37,6 +42,11 @@ class Response
             header('Content-Type: application/json; charset=utf-8');
         }
         echo json_encode($data, JSON_UNESCAPED_UNICODE);
+        // In CLI avoid exit so scripts can inspect results
+        if (php_sapi_name() === 'cli') {
+            echo "\n";
+            return;
+        }
         exit;
     }
 }

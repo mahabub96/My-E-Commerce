@@ -3,7 +3,15 @@
     "description": "E-commerce project",
     "type": "project",
     "require": {
-        "php": ">=8.0"
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-gd": "*",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "stripe/stripe-php": "^13.0",
+        "phpmailer/phpmailer": "^6.9"
     },
     "autoload": {
         "psr-4": {

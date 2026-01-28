@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Admin dashboard">
+  <meta name="csrf-token" content="<?= csrf_token() ?>">
   <title>Admin Dashboard</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/volt.css">
-  <link rel="stylesheet" href="../assets/css/admin.css">
+  <link rel="stylesheet" href="/assets/css/volt.css">
+  <link rel="stylesheet" href="/assets/css/admin.css">
 </head>
 <body class="admin-app d-flex">
   <?php include __DIR__ . '/partials/sidebar.php'; ?>
@@ -23,12 +24,13 @@
     </header>
 
     <main class="admin-main container">
+      <?php \App\Core\Views::partial('partials.flash'); ?>
       <div class="row g-3 mb-4">
         <div class="col-md-4">
           <div class="admin-card admin-stat">
             <div>
               <p class="text-muted mb-1">Revenue</p>
-              <h3 class="mb-0">$84,200</h3>
+              <h3 class="mb-0">$<?= number_format((float)($stats['total_revenue'] ?? 0), 2) ?></h3>
             </div>
             <span class="badge bg-success">+12%</span>
           </div>
@@ -37,7 +39,7 @@
           <div class="admin-card admin-stat">
             <div>
               <p class="text-muted mb-1">Orders</p>
-              <h3 class="mb-0">1,204</h3>
+              <h3 class="mb-0"><?= number_format((int)($stats['total_orders'] ?? 0)) ?></h3>
             </div>
             <span class="badge bg-success">+5%</span>
           </div>
@@ -46,7 +48,7 @@
           <div class="admin-card admin-stat">
             <div>
               <p class="text-muted mb-1">Customers</p>
-              <h3 class="mb-0">4,812</h3>
+              <h3 class="mb-0"><?= number_format((int)($stats['total_customers'] ?? 0)) ?></h3>
             </div>
             <span class="badge bg-secondary">Stable</span>
           </div>
@@ -58,7 +60,7 @@
           <div class="admin-card">
             <h5 class="mb-3">Recent Orders</h5>
             <div class="table-responsive">
-              <!-- TODO: Replace table rows with real orders from DB -->
+              <!-- Recent orders from DB -->
               <table class="table admin-table align-middle mb-0">
                 <thead>
                   <tr>
@@ -70,27 +72,29 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>#918273</td>
-                    <td>John Doe</td>
-                    <td>Jan 10</td>
-                    <td>$1,739</td>
-                    <td><span class="badge bg-success">Processing</span></td>
-                  </tr>
-                  <tr>
-                    <td>#918200</td>
-                    <td>Alice Lee</td>
-                    <td>Dec 28</td>
-                    <td>$299</td>
-                    <td><span class="badge bg-secondary">Delivered</span></td>
-                  </tr>
-                  <tr>
-                    <td>#918199</td>
-                    <td>Martin K.</td>
-                    <td>Dec 26</td>
-                    <td>$529</td>
-                    <td><span class="badge bg-warning text-dark">Pending</span></td>
-                  </tr>
+                  <?php if (!empty($recent_orders)): ?>
+                    <?php foreach ($recent_orders as $o): ?>
+                      <?php $status = $o['order_status'] ?? 'pending'; ?>
+                      <?php
+                        $badge = 'bg-secondary';
+                        if ($status === 'processing') $badge = 'bg-success';
+                        elseif ($status === 'pending') $badge = 'bg-warning text-dark';
+                        elseif ($status === 'completed') $badge = 'bg-primary';
+                        elseif ($status === 'cancelled') $badge = 'bg-danger';
+                      ?>
+                      <tr>
+                        <td><?= $o['order_number'] ?? ('#' . $o['id']) ?></td>
+                        <td><?= $o['customer_name'] ?? 'Customer' ?></td>
+                        <td><?= date('M d', strtotime($o['created_at'] ?? 'now')) ?></td>
+                        <td>$<?= number_format((float)($o['total_amount'] ?? 0), 2) ?></td>
+                        <td><span class="badge <?= $badge ?>"><?= ucfirst($status) ?></span></td>
+                      </tr>
+                    <?php endforeach; ?>
+                  <?php else: ?>
+                    <tr>
+                      <td colspan="5" class="text-center text-muted">No recent orders.</td>
+                    </tr>
+                  <?php endif; ?>
                 </tbody>
               </table>
             </div>
@@ -100,10 +104,18 @@
           <div class="admin-card">
             <h5 class="mb-3">Top Categories</h5>
             <ul class="list-group list-group-flush">
-              <li class="list-group-item d-flex justify-content-between align-items-center">Laptops <span class="badge bg-primary">45%</span></li>
-              <li class="list-group-item d-flex justify-content-between align-items-center">Audio <span class="badge bg-primary">25%</span></li>
-              <li class="list-group-item d-flex justify-content-between align-items-center">Home Appliances <span class="badge bg-primary">18%</span></li>
-              <li class="list-group-item d-flex justify-content-between align-items-center">Health <span class="badge bg-primary">12%</span></li>
+              <?php if (!empty($top_categories)): ?>
+                <?php foreach ($top_categories as $c): ?>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <?= $c['name'] ?? 'Category' ?>
+                    <span class="badge bg-primary"><?= (int)($c['product_count'] ?? 0) ?></span>
+                  </li>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  No categories <span class="badge bg-secondary">0</span>
+                </li>
+              <?php endif; ?>
             </ul>
           </div>
         </div>

@@ -35,6 +35,8 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
     $_SESSION['last_activity'] = time();
 }
 
+// Guest cart is stored in session and should persist during the session.
+
 // Basic error/exception handling with environment detection
 $appEnv = getenv('APP_ENV') ?: 'production';
 set_exception_handler(function ($e) use ($appEnv) {

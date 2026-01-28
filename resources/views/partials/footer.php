@@ -86,7 +86,7 @@
       <div class="cart-footer">
         <div class="cart-summary"><span>Subtotal</span><span data-cart-total>$0</span></div>
         <div class="cart-actions">
-          <a class="btn btn-primary rounded-pill" href="checkout.php">Go to Checkout</a>
+          <a class="btn btn-primary rounded-pill" href="/checkout">Go to Checkout</a>
           <button class="btn btn-outline-primary rounded-pill" type="button" data-cart-close>Continue Shopping</button>
         </div>
       </div>

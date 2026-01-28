@@ -9,108 +9,137 @@ use App\Models\Product;
 class CartController extends Controller
 {
 	/**
-	 * Add item to cart
+	 * Add item to cart (wrapped session format)
 	 */
 	public function add()
 	{
+		$this->ensureSession();
+		$this->normalizeSession();
+		if ($this->denyAdmin()) {
+			return;
+		}
+
+
 		// Rate limiting (20 attempts per 5 minutes per IP)
 		$clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 		if (!Middleware::rateLimit('cart_add_' . $clientIp, 20, 5)) {
 			return $this->json(['success' => false, 'message' => 'Too many requests. Please slow down.'], 429);
 		}
 
-		$productId = (int)$this->input('product_id');
-		$quantity = max(1, min(99, (int)$this->input('quantity', 1)));
+		$input = $this->request->all();
+		$productId = (int)($input['product_id'] ?? 0);
+		$quantity = max(1, min(99, (int)($input['quantity'] ?? $input['qty'] ?? 1)));
 
 		$product = (new Product())->find($productId);
 		if (!$product || $product['status'] !== 'active') {
 			return $this->json(['success' => false, 'message' => 'Product not found'], 404);
 		}
 
-		// Check stock availability
-		if ($product['quantity'] < $quantity) {
-			return $this->json([
-				'success' => false, 
-				'message' => 'Only ' . $product['quantity'] . ' items available in stock'
-			], 400);
+		if ((int)($product['quantity'] ?? 0) <= 0) {
+			return $this->json(['success' => false, 'message' => 'Out of stock'], 400);
 		}
 
-		// Get current cart
-		$cart = &$this->cart();
+		$effectivePrice = Product::effectivePrice($product);
 
-		// Check if adding this quantity exceeds stock
-		$existingQty = isset($cart[$productId]) ? $cart[$productId]['quantity'] : 0;
-		$newTotalQty = $existingQty + $quantity;
-
-		if ($newTotalQty > $product['quantity']) {
-			return $this->json([
-				'success' => false, 
-				'message' => 'Cannot add ' . $quantity . ' more. Only ' . ($product['quantity'] - $existingQty) . ' available'
-			], 400);
+		// Check stock
+		$existingQty = $_SESSION['cart']['items'][$productId]['quantity'] ?? 0;
+		if ($existingQty + $quantity > $product['quantity']) {
+			return $this->json(['success' => false, 'message' => 'Not enough stock'], 400);
 		}
 
-		// Add to cart
-		if (isset($cart[$productId])) {
-			$cart[$productId]['quantity'] += $quantity;
+		$items =& $_SESSION['cart']['items'];
+		if (isset($items[$productId])) {
+			$items[$productId]['price'] = $effectivePrice;
+			$items[$productId]['quantity'] += $quantity;
+			$items[$productId]['subtotal'] = $items[$productId]['price'] * $items[$productId]['quantity'];
 		} else {
-			$cart[$productId] = [
-				'id' => $productId,
+			// Determine best image for cart item (primary_image, image, or product_images primary)
+			$img = $product['primary_image'] ?? $product['image'] ?? (new Product())->getPrimaryImage((int)$productId);
+			$img = $this->normalizeImage($img) ?? $img;
+			$items[$productId] = [
+				'product_id' => $productId,
 				'name' => $product['name'],
-				'price' => (float)$product['price'],
+				'price' => $effectivePrice,
 				'quantity' => $quantity,
-				'image' => $product['image'] ?? null,
+				'image' => $img,
+				'subtotal' => $effectivePrice * $quantity,
 			];
 		}
 
-		// Save to database (future implementation)
+		$this->recalculateTotals();
 		$this->syncCartToDatabase();
 
-		return $this->json(['success' => true, 'message' => 'Added to cart', 'cart_count' => $this->cartCount()]);
+		return $this->json([
+			'success' => true,
+			'message' => 'Added to cart',
+			'cart_count' => $_SESSION['cart']['total_qty'],
+			'total' => $_SESSION['cart']['total_price'],
+			'cart' => array_values($_SESSION['cart']['items']),
+			'cart_wrapped' => $_SESSION['cart']
+		]);
 	}
 
 	public function update()
 	{
-		$productId = (int)$this->input('product_id');
-		$quantity = max(1, (int)$this->input('quantity', 1));
-
-		// Check stock before updating
-		$product = (new Product())->find($productId);
-		if ($product && $quantity > $product['quantity']) {
-			return $this->json([
-				'success' => false, 
-				'message' => 'Only ' . $product['quantity'] . ' items available'
-			], 400);
+		$this->ensureSession();
+		$this->normalizeSession();
+		if ($this->denyAdmin()) {
+			return;
 		}
 
-		$cart = &$this->cart();
-		if (!isset($cart[$productId])) {
+		$input = $this->request->all();
+		$productId = (int)($input['product_id'] ?? 0);
+		$quantity = max(1, (int)($input['quantity'] ?? 1));
+
+		$product = (new Product())->find($productId);
+		if ($product) {
+			if ((int)($product['quantity'] ?? 0) <= 0) {
+				return $this->json(['success' => false, 'message' => 'Out of stock'], 400);
+			}
+			if ($quantity > $product['quantity']) {
+				return $this->json(['success' => false, 'message' => 'Only ' . $product['quantity'] . ' items available'], 400);
+			}
+		}
+
+		if (!isset($_SESSION['cart']['items'][$productId])) {
 			return $this->json(['success' => false, 'message' => 'Item not in cart'], 404);
 		}
 
-		$cart[$productId]['quantity'] = $quantity;
-		$subtotal = $cart[$productId]['price'] * $quantity;
-
-		// Sync to database
+		$_SESSION['cart']['items'][$productId]['quantity'] = $quantity;
+		if (!empty($product)) {
+			$_SESSION['cart']['items'][$productId]['price'] = Product::effectivePrice($product);
+		}
+		$_SESSION['cart']['items'][$productId]['subtotal'] = $_SESSION['cart']['items'][$productId]['price'] * $quantity;
+		$this->recalculateTotals();
 		$this->syncCartToDatabase();
 
-		return $this->json(['success' => true, 'subtotal' => $subtotal, 'total' => $this->cartTotal()]);
+		return $this->json(['success' => true, 'subtotal' => $_SESSION['cart']['items'][$productId]['subtotal'], 'total' => $_SESSION['cart']['total_price'], 'cart_wrapped' => $_SESSION['cart']]);
 	}
 
 	public function remove()
 	{
-		$productId = (int)$this->input('product_id');
-		$cart = &$this->cart();
-		unset($cart[$productId]);
+		$this->ensureSession();
+		$this->normalizeSession();
+		if ($this->denyAdmin()) {
+			return;
+		}
 
-		// Sync to database
+		$productId = (int)$this->input('product_id');
+		unset($_SESSION['cart']['items'][$productId]);
+		$this->recalculateTotals();
 		$this->syncCartToDatabase();
 
-		return $this->json(['success' => true, 'cart_count' => $this->cartCount(), 'total' => $this->cartTotal()]);
+		return $this->json(['success' => true, 'cart_count' => $_SESSION['cart']['total_qty'], 'total' => $_SESSION['cart']['total_price'], 'cart_wrapped' => $_SESSION['cart']]);
 	}
 
 	public function count()
 	{
-		return $this->json(['count' => $this->cartCount()]);
+		$this->ensureSession();
+		$this->normalizeSession();
+		if ($this->denyAdmin()) {
+			return;
+		}
+		return $this->json(['count' => $_SESSION['cart']['total_qty']]);
 	}
 
 	/**
@@ -118,92 +147,168 @@ class CartController extends Controller
 	 */
 	public function items()
 	{
-		$cart = $this->cart();
+		$this->ensureSession();
+		$this->normalizeSession();
+		if ($this->denyAdmin()) {
+			return;
+		}
+
+		$itemsArr = array_values($_SESSION['cart']['items']);
 		return $this->json([
 			'success' => true,
-			'cart' => array_values($cart),
-			'total' => $this->cartTotal(),
-			'count' => $this->cartCount()
+			'cart' => $itemsArr,
+			'total' => $_SESSION['cart']['total_price'],
+			'count' => $_SESSION['cart']['total_qty'],
+			'cart_wrapped' => $_SESSION['cart']
 		]);
 	}
 
 	/**
-	 * Get cart reference (session-based for now)
+	 * Ensure session is active
 	 */
-	private function &cart(): array
+	private function ensureSession(): void
 	{
-		if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
-			$_SESSION['cart'] = [];
-			// Load from database if user is logged in
-			$this->loadCartFromDatabase();
+		if (session_status() !== PHP_SESSION_ACTIVE) {
+			session_start();
 		}
-		return $_SESSION['cart'];
 	}
 
 	/**
-	 * Load cart from database for authenticated user
+	 * Normalize session cart into wrapped structure
 	 */
-	private function loadCartFromDatabase(): void
+	private function normalizeSession(): void
 	{
-		$userId = $_SESSION['user_id'] ?? null;
-		if (!$userId) {
+		$this->ensureSession();
+		if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
+			$_SESSION['cart'] = ['items' => [], 'total_qty' => 0, 'total_price' => 0.0];
+			// If user is logged in, attempt to load from DB
+			$this->loadCartFromDatabase();
+			return;
+		}
+
+		if (!array_key_exists('items', $_SESSION['cart'])) {
+			// Migrate old flat format into wrapped structure
+			$old = $_SESSION['cart'];
+			$_SESSION['cart'] = ['items' => [], 'total_qty' => 0, 'total_price' => 0.0];
+			foreach ($old as $pid => $row) {
+				$pidInt = (int)$pid;
+				$qty = (int)($row['quantity'] ?? $row['qty'] ?? 0);
+				$price = (float)($row['price'] ?? 0);
+				$_SESSION['cart']['items'][$pidInt] = [
+					'product_id' => $pidInt,
+					'name' => $row['name'] ?? $row['title'] ?? '',
+					'price' => $price,
+					'quantity' => $qty,
+					'image' => $row['image'] ?? null,
+					'subtotal' => $price * $qty,
+				];
+			}
+			$this->recalculateTotals();
+		}
+	}
+
+	private function recalculateTotals(): void
+	{
+		$items = $_SESSION['cart']['items'] ?? [];
+		$totalQty = 0;
+		$totalPrice = 0.0;
+		foreach ($items as $id => $it) {
+			$qty = (int)($it['quantity'] ?? 0);
+			$price = (float)($it['price'] ?? 0);
+			$_SESSION['cart']['items'][$id]['quantity'] = $qty;
+			$_SESSION['cart']['items'][$id]['subtotal'] = $price * $qty;
+			$totalQty += $qty;
+			$totalPrice += $price * $qty;
+		}
+		$_SESSION['cart']['total_qty'] = $totalQty;
+		$_SESSION['cart']['total_price'] = $totalPrice;
+	}
+
+	/**
+	 * Get cart reference (wrapped session-based cart)
+	 */
+	private function &cart(): array
+	{
+		$this->ensureSession();
+		$this->normalizeSession();
+		return $_SESSION['cart']['items'];
+	}
+
+	/**
+	 * Load cart from database for authenticated user and populate wrapped session
+	 */
+	public function loadCartFromDatabase(): void
+	{
+		// Only customers have a DB-backed cart
+		if (!Middleware::ensureCustomer()) {
 			return; // Guest users use session only for now
+		}
+		$userId = Middleware::userId();
+		if (!$userId) {
+			return;
 		}
 
 		try {
 			$pdo = Product::getPDO();
-			$stmt = $pdo->prepare("
-				SELECT ci.product_id, ci.quantity, p.name, p.price, p.image, p.status
-				FROM cart_items ci
-				JOIN products p ON ci.product_id = p.id
-				WHERE ci.user_id = :user_id
-			");
+			$stmt = $pdo->prepare("SELECT ci.product_id, ci.quantity, p.name, p.price, p.discount_price, p.image, p.status FROM cart_items ci JOIN products p ON ci.product_id = p.id WHERE ci.user_id = :user_id");
 			$stmt->execute(['user_id' => $userId]);
-			$items = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+			$rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-			foreach ($items as $item) {
+			$_SESSION['cart'] = ['items' => [], 'total_qty' => 0, 'total_price' => 0.0];
+			foreach ($rows as $item) {
 				if ($item['status'] === 'active') {
-					$_SESSION['cart'][$item['product_id']] = [
-						'id' => $item['product_id'],
+					$pid = (int)$item['product_id'];
+					$qty = (int)$item['quantity'];
+					$price = Product::effectivePrice($item);
+					$img = $item['image'] ?? (new Product())->getPrimaryImage($pid);
+					$img = $this->normalizeImage($img) ?? $img;
+					$_SESSION['cart']['items'][$pid] = [
+						'product_id' => $pid,
 						'name' => $item['name'],
-						'price' => (float)$item['price'],
-						'quantity' => (int)$item['quantity'],
-						'image' => $item['image'],
+						'price' => $price,
+						'quantity' => $qty,
+						'image' => $img,
+						'subtotal' => $price * $qty,
 					];
 				}
 			}
+			$this->recalculateTotals();
 		} catch (\PDOException $e) {
 			error_log("Failed to load cart from database: " . $e->getMessage());
 		}
 	}
 
+	private function normalizeImage(?string $candidate): ?string
+	{
+		if (empty($candidate)) return null;
+		return Product::resolveImageUrl($candidate);
+	}
+
 	/**
-	 * Sync session cart to database
+	 * Sync wrapped session cart to database for authenticated user
 	 */
 	private function syncCartToDatabase(): void
 	{
-		$userId = $_SESSION['user_id'] ?? null;
-		if (!$userId) {
+		if (!Middleware::ensureCustomer()) {
 			return; // Guest users use session only
+		}
+		$userId = Middleware::userId();
+		if (!$userId) {
+			return;
 		}
 
 		try {
 			$pdo = Product::getPDO();
-			
 			// Clear existing cart items
 			$stmt = $pdo->prepare("DELETE FROM cart_items WHERE user_id = :user_id");
 			$stmt->execute(['user_id' => $userId]);
 
-			// Insert current cart items
-			$cart = $_SESSION['cart'] ?? [];
-			foreach ($cart as $item) {
-				$stmt = $pdo->prepare("
-					INSERT INTO cart_items (user_id, product_id, quantity, created_at, updated_at)
-					VALUES (:user_id, :product_id, :quantity, NOW(), NOW())
-				");
+			$items = $_SESSION['cart']['items'] ?? [];
+			foreach ($items as $item) {
+				$stmt = $pdo->prepare("INSERT INTO cart_items (user_id, product_id, quantity, created_at, updated_at) VALUES (:user_id, :product_id, :quantity, NOW(), NOW())");
 				$stmt->execute([
 					'user_id' => $userId,
-					'product_id' => $item['id'],
+					'product_id' => $item['product_id'],
 					'quantity' => $item['quantity'],
 				]);
 			}
@@ -214,15 +319,30 @@ class CartController extends Controller
 
 	private function cartCount(): int
 	{
-		return array_sum(array_map(fn($item) => (int)$item['quantity'], $this->cart()));
+		$this->ensureSession();
+		$this->normalizeSession();
+		return (int)($_SESSION['cart']['total_qty'] ?? 0);
 	}
 
 	private function cartTotal(): float
 	{
-		$total = 0.0;
-		foreach ($this->cart() as $item) {
-			$total += ((float)$item['price']) * (int)$item['quantity'];
+		$this->ensureSession();
+		$this->normalizeSession();
+		return (float)($_SESSION['cart']['total_price'] ?? 0.0);
+	}
+
+	private function denyAdmin(): bool
+	{
+		if (!Middleware::ensureAdmin()) {
+			return false;
 		}
-		return $total;
+		if ($this->request->isAjax()) {
+			$this->json(['success' => false, 'message' => 'Admins cannot access customer cart'], 403);
+			return true;
+		}
+		\App\Helpers\Session::start();
+		\App\Helpers\Session::flash('error', 'Admins cannot access the customer cart.');
+		$this->redirect('/admin/dashboard');
+		return true;
 	}
 }
