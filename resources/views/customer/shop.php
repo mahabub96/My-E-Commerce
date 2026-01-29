@@ -109,9 +109,18 @@
             <div class="filter-group">
               <p class="filter-label">Ratings</p>
               <div class="filter-options">
-                <label><input type="checkbox"> 4 stars & up</label>
-                <label><input type="checkbox"> 3 stars & up</label>
-                <label><input type="checkbox"> 2 stars & up</label>
+                <?php
+                  $selectedRatings = $filters['rating'] ?? [];
+                  if (is_string($selectedRatings) && strpos($selectedRatings, ',') !== false) {
+                    $selectedRatings = array_filter(array_map('trim', explode(',', $selectedRatings)));
+                  }
+                  if (!is_array($selectedRatings)) {
+                    $selectedRatings = [$selectedRatings];
+                  }
+                ?>
+                <label><input type="checkbox" name="rating" value="4" <?= in_array('4', $selectedRatings, true) ? 'checked' : '' ?>> 4 stars & up</label>
+                <label><input type="checkbox" name="rating" value="3" <?= in_array('3', $selectedRatings, true) ? 'checked' : '' ?>> 3 stars & up</label>
+                <label><input type="checkbox" name="rating" value="2" <?= in_array('2', $selectedRatings, true) ? 'checked' : '' ?>> 2 stars & up</label>
               </div>
             </div>
           </aside>

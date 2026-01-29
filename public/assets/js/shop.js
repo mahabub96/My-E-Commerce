@@ -23,7 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let originalPagination = {};
   let originalFilters = {
     categories: new Set(),
-    prices: new Set()
+    prices: new Set(),
+    ratings: new Set()
   };
 
   const priceMap = ['under-100', '100-500', '500-1000', '1000-plus'];
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sort: sortSelect?.value || 'featured',
     categories: new Set(),
     prices: new Set(),
+    ratings: new Set(),
     page: 1,
     isSearchActive: false
   };
@@ -55,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const initStateFromInputs = () => {
     state.categories = new Set(Array.from(document.querySelectorAll('input[name="category"]:checked')).map(i => i.value));
     state.prices = new Set(Array.from(document.querySelectorAll('input[name="price"]:checked')).map(i => i.dataset.priceRange).filter(Boolean));
+    state.ratings = new Set(Array.from(document.querySelectorAll('input[name="rating"]:checked')).map(i => i.value));
     state.search = searchInput?.value || '';
     state.sort = sortSelect?.value || 'featured';
   };
@@ -66,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.page) params.set('page', String(state.page));
     state.categories.forEach(c => params.append('category[]', c));
     state.prices.forEach(p => params.append('price[]', p));
+    state.ratings.forEach(r => params.append('rating[]', r));
     return params;
   };
 
@@ -192,6 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Also capture the current UI filters/sort/search as original
           originalFilters.categories = new Set(state.categories);
           originalFilters.prices = new Set(state.prices);
+          originalFilters.ratings = new Set(state.ratings);
           originalSort = state.sort;
           originalSearch = state.search;
         }
@@ -274,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   document.addEventListener('change', (e) => {
-    if (e.target && (e.target.matches('input[name="category"]') || e.target.matches('input[name="price"]'))) {
+    if (e.target && (e.target.matches('input[name="category"]') || e.target.matches('input[name="price"]') || e.target.matches('input[name="rating"]'))) {
       updateStateAndFetch();
     }
   });
@@ -361,6 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Save original filter state
   originalFilters.categories = new Set(state.categories);
   originalFilters.prices = new Set(state.prices);
+  originalFilters.ratings = new Set(state.ratings);
   
   // Save original state on page load
   fetchProducts(true);

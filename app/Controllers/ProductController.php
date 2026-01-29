@@ -34,6 +34,7 @@ class ProductController extends Controller
 		$search = $this->request->get('search', '');
 		$category = $this->request->get('category', '');
 		$priceRange = $this->request->get('price', '');
+		$ratingRange = $this->request->get('rating', '');
 		$sort = $this->request->get('sort', 'featured');
 		$page = max(1, (int)$this->request->get('page', 1));
 		$perPage = 12;
@@ -114,6 +115,21 @@ class ProductController extends Controller
 			}
 			if (!empty($priceClauses)) {
 				$conditions[] = '(' . implode(' OR ', $priceClauses) . ')';
+			}
+		}
+
+		if (!empty($ratingRange)) {
+			$ratings = $ratingRange;
+			if (is_string($ratings) && strpos($ratings, ',') !== false) {
+				$ratings = array_filter(array_map('trim', explode(',', $ratings)));
+			}
+			if (!is_array($ratings)) {
+				$ratings = [$ratings];
+			}
+			$minRating = !empty($ratings) ? min(array_map('floatval', $ratings)) : 0;
+			if ($minRating > 0) {
+				$conditions[] = "id IN (SELECT product_id FROM reviews GROUP BY product_id HAVING AVG(rating) >= :min_rating)";
+				$params['min_rating'] = $minRating;
 			}
 		}
 		
