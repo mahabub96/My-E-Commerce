@@ -30,6 +30,12 @@ class Session
     public static function start(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
+            // Set session save path to storage/sessions for better control and persistence
+            $sessionPath = __DIR__ . '/../../storage/sessions';
+            if (!is_dir($sessionPath)) {
+                mkdir($sessionPath, 0755, true);
+            }
+            session_save_path($sessionPath);
             session_start();
         }
     }

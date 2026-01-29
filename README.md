@@ -1,5 +1,23 @@
 # E-Commerce Platform
 
+**Live demo:** `http://e-shop.host.adellya.my.id/` (root)
+
+**Admin routes (protected):**
+
+- `/admin/login`
+- `/admin/logout`
+- `/admin`
+- `/admin/dashboard`
+- `/admin/categories`
+- `/admin/categories/create`
+- `/admin/categories/{id}/edit`
+- `/admin/products`
+- `/admin/products/create`
+- `/admin/products/{id}/edit`
+- `/admin/orders`
+- `/admin/orders/{id}`
+- `/admin/orders/{id}/status`
+
 A full-stack e-commerce web application built with PHP MVC architecture, featuring role-based access control, session-based authentication, and comprehensive order management.
 
 ## Project Overview

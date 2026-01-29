@@ -1,7 +1,7 @@
 -- ============================================================================
--- E-Commerce Database Schema
--- Complete database structure with all tables, indexes, and relationships
--- Generated: 2026-01-27
+-- E-Commerce Database Schema (Clean)
+-- Complete database structure without dummy data
+-- Generated: 2026-01-29
 -- ============================================================================
 
 SET NAMES utf8mb4;
@@ -251,13 +251,6 @@ CREATE TABLE `payments` (
   CONSTRAINT `fk_payments_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
--- ============================================================================
--- TABLE: password_resets
--- Description: Password reset tokens (REMOVED in lean distribution)
--- ============================================================================
--- (Removed: password reset flow is not included in this lean production build)
-
 -- ============================================================================
 -- TABLE: cart_items
 -- Description: Shopping cart items (session or user-based)
@@ -290,81 +283,11 @@ CREATE TABLE IF NOT EXISTS `migrations` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- SEED DATA
+-- INITIAL DATA
 -- ============================================================================
 
--- Categories
-INSERT INTO `categories` (`name`, `slug`, `description`, `icon_path`, `status`, `is_active`) VALUES
-('Laptops', 'laptops', 'Laptop computers and ultrabooks', 'assets/icons/laptop.svg', 'active', 1),
-('Audio', 'audio', 'Headphones, speakers, and audio equipment', 'assets/icons/headphones.svg', 'active', 1),
-('Home Appliances', 'home-appliances', 'Small kitchen and home appliances', 'assets/icons/blender.svg', 'active', 1),
-('Mobile Devices', 'mobile-devices', 'Smartphones and tablets', 'assets/icons/mobile.svg', 'active', 1),
-('Cameras', 'cameras', 'Digital cameras and accessories', 'assets/icons/camera.svg', 'active', 1),
-('Gaming', 'gaming', 'Gaming consoles and accessories', 'assets/icons/gamepad.svg', 'active', 1);
-
--- Products
-INSERT INTO `products` (`category_id`, `name`, `sku`, `slug`, `description`, `price`, `discount_price`, `quantity`, `stock_quantity`, `primary_image`, `featured`, `status`, `is_active`) VALUES
-(1, 'Asus Zenbook UX-430', 'LAPTOP-ASUS-001', 'asus-zenbook-ux430', 'Ultra-slim 14-inch laptop with Intel Core i7, 16GB RAM, 512GB SSD', 1299.00, NULL, 10, 10, 'products/laptop-asus.png', 1, 'active', 1),
-(1, 'Acer Swift Air SF-313', 'LAPTOP-ACER-002', 'acer-swift-air-sf313', 'Lightweight 13-inch laptop with AMD Ryzen 7, 8GB RAM, 256GB SSD', 999.00, 899.00, 15, 15, 'products/laptop-acer.png', 0, 'active', 1),
-(2, 'Audio Technica ATH-M20 BT', 'AUDIO-ATH-003', 'audio-technica-ath-m20-bt', 'Professional Bluetooth over-ear headphones with 60hr battery', 199.00, NULL, 50, 50, 'products/headphone-ath.png', 0, 'active', 1),
-(2, 'Bose QuietComfort 45', 'AUDIO-BOSE-004', 'bose-quietcomfort-45', 'Premium wireless noise-cancelling headphones with Acoustic Noise Cancelling', 329.00, NULL, 20, 20, 'products/headphone-bose.png', 1, 'active', 1),
-(3, 'Modena Juice Blender', 'APPLIANCE-MODENA-005', 'modena-juice-blender', 'Powerful 600W blender with 1.5L glass jar and multiple speed settings', 129.00, NULL, 25, 25, 'products/blender-modena.png', 0, 'active', 1),
-(3, 'SK-II Anti Aging Cream', 'BEAUTY-SKII-006', 'sk-ii-anti-aging-cream', 'Luxury anti-aging face cream with Pitera essence, 50g', 79.00, 69.00, 40, 40, 'products/cream-skii.png', 0, 'active', 1);
-
--- Product Images
-INSERT INTO `product_images` (`product_id`, `image_path`, `position`, `is_primary`) VALUES
-(1, 'products/laptop-asus.png', 1, 1),
-(1, 'products/laptop-asus-side.png', 2, 0),
-(2, 'products/laptop-acer.png', 1, 1),
-(3, 'products/headphone-ath.png', 1, 1),
-(4, 'products/headphone-bose.png', 1, 1),
-(4, 'products/headphone-bose-case.png', 2, 0),
-(5, 'products/blender-modena.png', 1, 1),
-(6, 'products/cream-skii.png', 1, 1);
-
--- Users (Password: 'admin4218' - hashed with bcrypt)
+-- Admin User (Password: 'Admin4218' - hashed with bcrypt)
 INSERT INTO `users` (`name`, `email`, `password`, `phone`, `role`, `status`) VALUES
-('Admin User', 'admin@ecommerce.com', '$2y$12$U3xKY1eRHlGq4E9Lvnkdb.1DXc1FJwrL2.MWQeIhjbkXMKSnltJRG', '555-0100', 'admin', 'active'),
-('John Doe', 'john@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '555-0101', 'customer', 'active'),
-('Jane Smith', 'jane@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '555-0102', 'customer', 'active'),
-('Bob Wilson', 'bob@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '555-0103', 'customer', 'active');
-
--- Sample Orders
-INSERT INTO `orders` (`user_id`, `order_number`, `total_amount`, `payment_method`, `payment_status`, `order_status`, `phone`, `shipping_address`, `shipping_city`, `shipping_country`, `shipping_postal_code`, `status`) VALUES
-(2, 'ORD-20260127-0001', 1299.00, 'cod', 'paid', 'completed', '555-0101', '123 Main Street, Apt 4B', 'New York', 'USA', '10001', 'completed'),
-(2, 'ORD-20260127-0002', 329.00, 'stripe', 'paid', 'shipped', '555-0101', '123 Main Street, Apt 4B', 'New York', 'USA', '10001', 'shipped'),
-(3, 'ORD-20260127-0003', 1028.00, 'paypal', 'paid', 'completed', '555-0102', '456 Oak Avenue', 'Los Angeles', 'USA', '90001', 'completed'),
-(4, 'ORD-20260127-0004', 129.00, 'cod', 'pending', 'pending', '555-0103', '789 Pine Road', 'Chicago', 'USA', '60601', 'pending');
-
--- Order Items
-INSERT INTO `order_items` (`order_id`, `product_id`, `product_name`, `quantity`, `price`, `total`) VALUES
-(1, 1, 'Asus Zenbook UX-430', 1, 1299.00, 1299.00),
-(2, 4, 'Bose QuietComfort 45', 1, 329.00, 329.00),
-(3, 2, 'Acer Swift Air SF-313', 1, 899.00, 899.00),
-(3, 5, 'Modena Juice Blender', 1, 129.00, 129.00),
-(4, 5, 'Modena Juice Blender', 1, 129.00, 129.00);
-
--- Sample Reviews
-INSERT INTO `reviews` (`user_id`, `product_id`, `order_id`, `rating`, `comment`) VALUES
-(2, 1, 1, 5, 'Excellent laptop! Very fast and lightweight. Perfect for work and travel.'),
-(2, 4, 2, 5, 'Best noise-cancelling headphones I''ve ever owned. Worth every penny!'),
-(3, 2, 3, 4, 'Great value laptop. Battery life is excellent. Only downside is the limited storage.'),
-(3, 5, 3, 5, 'Perfect blender for smoothies! Very powerful and easy to clean.');
-
--- Sample Notifications
-INSERT INTO `notifications` (`user_id`, `type`, `title`, `message`, `link`, `is_read`) VALUES
-(2, 'order_shipped', 'Order Shipped', 'Your order #ORD-20260127-0002 has been shipped and is on its way!', '/customer/orders?id=2', 0),
-(2, 'review_request', 'Review Your Purchase', 'How was your Asus Zenbook UX-430? Share your experience!', '/product/asus-zenbook-ux430#reviews', 0),
-(3, 'order_completed', 'Order Delivered', 'Your order #ORD-20260127-0003 has been delivered. Thank you for shopping with us!', '/customer/orders?id=3', 1),
-(4, 'order_pending', 'Order Received', 'We have received your order #ORD-20260127-0004 and will process it soon.', '/customer/orders?id=4', 1);
-
--- Sample Payments
-INSERT INTO `payments` (`order_id`, `gateway`, `payment_id`, `amount`, `currency`, `status`) VALUES
-(2, 'stripe', 'pi_1234567890abcdef', 329.00, 'USD', 'succeeded'),
-(3, 'paypal', 'PAYID-1234567890', 1028.00, 'USD', 'completed');
+('Admin User', 'admin@ecommerce.com', '$2y$12$VitUP3JbtaqwVjqIT14m0.zps5pju/cmjTDEhGWYTS5z0hsR5Olia', '555-0100', 'admin', 'active');
 
 SET FOREIGN_KEY_CHECKS = 1;
-
--- ============================================================================
--- END OF SCHEMA
--- ============================================================================

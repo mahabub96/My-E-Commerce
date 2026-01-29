@@ -1,0 +1,1687 @@
+================================================================================
+                    PROJECT DEEP DIVE - E-COMMERCE APPLICATION
+                         A Complete Learning Document
+================================================================================
+
+This document is designed to help a beginner understand every part of this
+PHP MVC e-commerce project. It explains how things work, why they exist, and
+how data flows through the system. Read it slowly and refer back often.
+
+
+================================================================================
+SECTION 1 - PROJECT OVERVIEW
+================================================================================
+
+1.1 What Is This Application?
+-----------------------------
+This is a full-stack e-commerce web application. It allows:
+  - Customers to browse products, add them to a cart, and place orders
+  - Administrators to manage products, categories, and view/update orders
+
+Think of it like a simplified version of Amazon or Shopify.
+
+
+1.2 Who Are The Users?
+----------------------
+There are two types of users:
+
+  CUSTOMER (role = "customer")
+    - Can register and login
+    - Can browse and search products
+    - Can add items to cart
+    - Can checkout and place orders
+    - Can view their order history
+    - Can leave reviews on products
+
+  ADMIN (role = "admin")
+    - Can login to admin panel
+    - Can create, edit, delete products
+    - Can create, edit, delete categories
+    - Can view all orders and update their status
+    - Cannot use the customer cart/checkout
+
+
+1.3 What Technologies Are Used?
+-------------------------------
+  FRONTEND:
+    - HTML5 for structure
+    - CSS3 (custom + Bootstrap 5) for styling
+    - JavaScript (vanilla, no frameworks) for interactivity
+    - Bootstrap Icons for icon graphics
+
+  BACKEND:
+    - PHP 8.2+ for server-side logic
+    - MySQL for database storage
+    - PDO for database connections (secure, prepared statements)
+
+  ARCHITECTURE:
+    - MVC Pattern (Model-View-Controller)
+    - Custom Router for URL handling
+    - Session-based authentication
+
+
+1.4 What Does MVC Mean In This Project?
+---------------------------------------
+MVC is a way of organizing code into three responsibilities:
+
+  MODEL (app/Models/)
+    - Talks to the database
+    - Contains business logic for data
+    - Example: User.php handles user lookups and password verification
+
+  VIEW (resources/views/)
+    - The HTML templates users see
+    - Contains PHP placeholders for dynamic data
+    - Example: shop.php displays the product listing page
+
+  CONTROLLER (app/Controllers/)
+    - Receives requests from the browser
+    - Gets data from Models
+    - Passes data to Views
+    - Example: ProductController.php handles /shop and /product/slug
+
+The ROUTER (app/Core/Router.php) is the traffic director. It looks at the URL
+and decides which Controller method to call.
+
+
+================================================================================
+SECTION 2 - FOLDER STRUCTURE WALKTHROUGH
+================================================================================
+
+Here is what each folder does and which files matter most:
+
+/public/
+--------
+  PURPOSE: The only folder directly accessible from the web browser.
+  IMPORTANT FILES:
+    - index.php      <- THE SINGLE ENTRY POINT. All requests go here first.
+    - assets/        <- CSS, JavaScript, and image files
+    - uploads/       <- User-uploaded images (products, categories)
+
+  READ FIRST: index.php - This is where every request starts.
+
+
+/app/
+-----
+  PURPOSE: All PHP application code lives here.
+
+  /app/Core/
+    - Controller.php   <- Base class all controllers extend
+    - Model.php        <- Base class all models extend
+    - Router.php       <- Matches URLs to controller methods
+    - Views.php        <- Renders PHP templates
+    - Request.php      <- Wrapper for $_GET, $_POST, JSON body
+    - Response.php     <- Sends redirects and JSON responses
+    - Middleware.php   <- Authentication and CSRF checks
+
+  /app/Controllers/
+    - AuthController.php        <- Customer login/register/logout
+    - CartController.php        <- Add/update/remove cart items
+    - CheckoutController.php    <- Process orders
+    - ProductController.php     <- Product listing and details
+    - HomeController.php        <- Homepage
+    - ProfileController.php     <- Customer profile and orders
+    - ReviewsController.php     <- Product reviews API
+    - SearchController.php      <- Search suggestions API
+
+  /app/Controllers/Admin/
+    - AuthController.php        <- Admin login/logout
+    - DashboardController.php   <- Admin dashboard stats
+    - ProductController.php     <- CRUD for products
+    - CategoryController.php    <- CRUD for categories
+    - OrderController.php       <- View and update orders
+
+  /app/Models/
+    - User.php          <- User authentication
+    - Product.php       <- Product queries and images
+    - Category.php      <- Category queries
+    - Order.php         <- Order creation with items
+    - OrderItem.php     <- Individual order line items
+    - Cart.php          <- Cart database persistence
+    - Review.php        <- Product reviews
+    - Notification.php  <- User notifications
+
+  /app/Helpers/
+    - helpers.php    <- Global functions (env, asset, csrf_token, etc.)
+    - Session.php    <- Session management and flash messages
+    - Validator.php  <- Form validation rules
+    - Upload.php     <- File upload handling
+
+  /app/Services/
+    - ValidationRules.php  <- Predefined validation rule sets
+
+  READ FIRST: Controller.php, Model.php, Router.php - the core architecture.
+
+
+/config/
+--------
+  PURPOSE: Configuration settings.
+  IMPORTANT FILES:
+    - env.php    <- Database credentials, app URL, environment settings
+
+  READ FIRST: env.php - understand how config is loaded.
+
+
+/routes/
+--------
+  PURPOSE: All URL routes are defined here.
+  IMPORTANT FILES:
+    - web.php    <- Complete list of every URL the app responds to
+
+  READ FIRST: web.php - this is your map of all available pages/endpoints.
+
+
+/resources/views/
+-----------------
+  PURPOSE: HTML templates with embedded PHP.
+
+  /customer/          <- Customer-facing pages
+    - index.php       <- Homepage
+    - shop.php        <- Product listing
+    - product.php     <- Single product detail
+    - checkout.php    <- Checkout form
+    - login.php       <- Customer login
+    - register.php    <- Customer registration
+    - profile.php     <- Customer profile
+
+  /admin/             <- Admin panel pages
+    - dashboard.php   <- Admin dashboard
+    - products.php    <- Product management
+    - categories.php  <- Category management
+    - orders.php      <- Order management
+
+  /partials/          <- Reusable template pieces
+    - header.php      <- Navigation bar
+    - footer.php      <- Footer content
+    - flash.php       <- Flash message display
+
+  READ FIRST: customer/shop.php - see how PHP data appears in HTML.
+
+
+/storage/
+---------
+  PURPOSE: Application storage (not web accessible).
+    - logs/       <- Error logs (app.log)
+    - sessions/   <- PHP session files
+
+
+/database/
+----------
+  PURPOSE: Database schema and migrations.
+    - ecommerce_db.sql      <- Full database with sample data
+    - ecommerce_clean.sql   <- Empty database structure only
+
+
+/vendor/
+--------
+  PURPOSE: Composer dependencies (third-party packages).
+  DO NOT EDIT files here. They are managed by Composer.
+
+
+================================================================================
+SECTION 3 - FRONTEND (CUSTOMER PAGES)
+================================================================================
+
+3.1 Homepage (index.php)
+------------------------
+  URL: /
+  CONTROLLER: HomeController@index
+
+  WHAT IT SHOWS:
+    - Hero section with search bar
+    - Weekly deals promotional cards
+    - Featured products grid
+    - Most sold products
+    - Recommended products
+    - Newsletter signup
+
+  DATA FROM BACKEND:
+    - $featured     <- Array of featured products
+    - $recommended  <- Array of recommended products
+    - $mostSold     <- Array of top-selling products
+
+  JAVASCRIPT: main.js, cart.js, search.js
+
+
+3.2 Shop Page (shop.php)
+------------------------
+  URL: /shop
+  CONTROLLER: ProductController@index
+
+  WHAT IT SHOWS:
+    - Search bar
+    - Filter sidebar (categories, price range, ratings)
+    - Sort dropdown (featured, price, newest)
+    - Product grid with pagination
+
+  DATA FROM BACKEND:
+    - $products     <- Array of products for current page
+    - $categories   <- Array of categories for filter
+    - $pagination   <- Page numbers and totals
+    - $filters      <- Current active filters
+
+  JAVASCRIPT: shop.js handles filtering without page reload.
+
+  HOW FILTERING WORKS:
+    1. User clicks a filter checkbox
+    2. JavaScript builds a query string
+    3. AJAX request to /shop with filters
+    4. Server returns JSON with filtered products
+    5. JavaScript replaces the product grid
+
+
+3.3 Product Detail (product.php)
+--------------------------------
+  URL: /product/{slug}
+  CONTROLLER: ProductController@show
+
+  WHAT IT SHOWS:
+    - Large product image with thumbnails
+    - Product name, price, description
+    - Quantity selector
+    - Add to Cart and Buy Now buttons
+    - Tabs for description and reviews
+    - Related products
+
+  DATA FROM BACKEND:
+    - $product      <- Single product details
+    - $images       <- Array of product images
+    - $related      <- Array of related products
+    - $reviews      <- Array of product reviews
+
+  JAVASCRIPT: product.js handles gallery, quantity, and reviews.
+
+
+3.4 Cart
+--------
+  The cart is a DRAWER (slide-in panel), not a separate page.
+
+  HOW IT WORKS:
+    - Click cart icon -> cart drawer slides in
+    - Shows items, quantities, subtotals
+    - Can update quantities or remove items
+    - Checkout button goes to /checkout
+
+  DATA STORAGE:
+    - Guest users: cart stored in PHP session
+    - Logged in users: cart synced to database
+
+  JAVASCRIPT: cart.js manages all cart operations via AJAX.
+
+
+3.5 Checkout (checkout.php)
+---------------------------
+  URL: /checkout (PROTECTED - requires login)
+  CONTROLLER: CheckoutController@index
+
+  WHAT IT SHOWS:
+    - Shipping address form
+    - Order summary (cart items)
+    - Payment method selection
+    - Place Order button
+
+  DATA FROM BACKEND:
+    - $cart    <- Current cart items
+    - $total   <- Order total
+    - $user    <- Logged in user details
+
+  JAVASCRIPT: checkout.js handles form submission via AJAX.
+
+
+3.6 Profile (profile.php)
+-------------------------
+  URL: /profile (PROTECTED)
+  CONTROLLER: ProfileController@index
+
+  WHAT IT SHOWS:
+    - User information (name, email, phone)
+    - Shipping addresses
+    - Recent orders
+    - Notifications
+
+  DATA FROM BACKEND:
+    - $user      <- User details
+    - $orders    <- Recent orders
+    - $addresses <- Saved addresses
+
+
+================================================================================
+SECTION 4 - FRONTEND (ADMIN PANEL)
+================================================================================
+
+4.1 Admin Login
+---------------
+  URL: /admin/login
+  CONTROLLER: Admin\AuthController@showLogin
+
+  Simple login form. On success, redirects to dashboard.
+  Uses standard form POST (not AJAX) for reliable redirects.
+
+
+4.2 Admin Dashboard
+-------------------
+  URL: /admin or /admin/dashboard
+  CONTROLLER: Admin\DashboardController@index
+
+  WHAT IT SHOWS:
+    - Statistics cards (revenue, orders, customers)
+    - Recent orders table
+    - Top categories chart
+
+  DATA FROM BACKEND:
+    - $stats           <- Total revenue, orders, customers
+    - $recent_orders   <- Latest 5 orders
+    - $top_categories  <- Categories with product counts
+
+
+4.3 Product Management
+----------------------
+  URL: /admin/products
+  CONTROLLER: Admin\ProductController@index
+
+  WHAT ADMIN CAN DO:
+    - View all products in a table
+    - Search products
+    - Create new product
+    - Edit existing product
+    - Delete product
+
+  CREATE/EDIT FORM INCLUDES:
+    - Name, slug, description
+    - Category selection
+    - Price and discount price
+    - Quantity and SKU
+    - Up to 4 images
+    - Featured toggle
+    - Status (active/inactive)
+
+  JAVASCRIPT: admin-products.js handles AJAX operations.
+
+
+4.4 Category Management
+-----------------------
+  URL: /admin/categories
+  CONTROLLER: Admin\CategoryController@index
+
+  WHAT ADMIN CAN DO:
+    - View all categories
+    - Create new category
+    - Edit existing category
+    - Delete category (if no products)
+
+  CATEGORY HAS:
+    - Name and slug
+    - Description
+    - Icon image
+
+
+4.5 Order Management
+--------------------
+  URL: /admin/orders
+  CONTROLLER: Admin\OrderController@index
+
+  WHAT ADMIN CAN DO:
+    - View all orders with filters
+    - Click to see order details
+    - Update order status (pending, processing, shipped, delivered)
+    - Update payment status (unpaid, paid, failed)
+
+  ORDER DETAILS SHOW:
+    - Customer information
+    - Shipping address
+    - All items with quantities and prices
+    - Order totals
+
+
+================================================================================
+SECTION 5 - JAVASCRIPT DEEP DIVE (MOST IMPORTANT)
+================================================================================
+
+JavaScript is what makes this application interactive without full page reloads.
+Understanding how JS works is CRITICAL for debugging and extending features.
+
+
+5.1 cart.js - The Cart System
+-----------------------------
+  PURPOSE: Manages the slide-in cart drawer and all cart operations.
+
+  KEY VARIABLES:
+    - cart           <- Array of cart items in memory
+    - drawer         <- The cart drawer DOM element
+    - itemsContainer <- Where cart items are rendered
+
+  KEY FUNCTIONS:
+
+    getCsrfToken()
+      Gets the CSRF token from the meta tag in HTML.
+      Every POST request needs this for security.
+
+    fetchCart()
+      Calls GET /cart/items to get current cart from server.
+      Updates local cart array and re-renders.
+
+    addToCart(button)
+      Called when user clicks "Add to Cart".
+      Sends POST /cart/add with product_id and quantity.
+      On success, refreshes cart and opens drawer.
+
+    updateItemQty(id, qty)
+      Called when user changes quantity in cart.
+      Sends POST /cart/update with new quantity.
+      Refreshes cart display.
+
+    removeItem(id)
+      Called when user clicks remove button.
+      Sends POST /cart/remove.
+      Refreshes cart display.
+
+    renderCart()
+      Takes cart array and creates HTML for each item.
+      Updates total price display.
+      Shows empty state if cart is empty.
+
+    openCart() / closeCart()
+      Slides the cart drawer in/out.
+      Manages focus trapping for accessibility.
+
+  COMPLETE FLOW - ADDING TO CART:
+    1. User clicks [Add to Cart] button
+    2. Button has data-add-to-cart and data-product-id attributes
+    3. JavaScript catches the click event
+    4. addToCart() is called with the button
+    5. JS extracts product ID and quantity
+    6. fetch() sends POST to /cart/add with JSON body
+    7. Server validates and adds to session
+    8. Server returns JSON: {success: true, cart_count: 3}
+    9. JS calls fetchCart() to get updated cart
+    10. renderCart() rebuilds the cart HTML
+    11. openCart() slides the drawer open
+
+
+5.2 shop.js - Product Filtering
+-------------------------------
+  PURPOSE: Handles filtering and sorting products without page reload.
+
+  KEY STATE OBJECT:
+    const state = {
+      search: '',           <- Current search term
+      sort: 'featured',     <- Current sort option
+      categories: Set(),    <- Selected category IDs
+      prices: Set(),        <- Selected price ranges
+      ratings: Set(),       <- Selected rating filters
+      page: 1               <- Current page number
+    }
+
+  KEY FUNCTIONS:
+
+    buildQuery()
+      Converts state object into URL query string.
+      Example: ?search=laptop&sort=price-asc&category[]=1&category[]=2
+
+    fetchProducts()
+      Sends AJAX request to /shop with current filters.
+      Server returns JSON with products and pagination.
+      Calls renderProducts() and renderPagination().
+
+    renderProducts(products)
+      Clears the product grid.
+      Creates HTML card for each product.
+      Includes rating stars, price, Add to Cart button.
+
+    renderPagination(data)
+      Creates page number links.
+      Clicking a page updates state.page and fetches again.
+
+  COMPLETE FLOW - FILTERING BY CATEGORY:
+    1. User checks a category checkbox
+    2. change event fires on the input
+    3. updateStateAndFetch() is called
+    4. initStateFromInputs() reads all checked boxes
+    5. state.categories is updated with selected IDs
+    6. state.page resets to 1
+    7. fetchProducts() builds query and sends request
+    8. Server queries database with WHERE category_id IN (...)
+    9. Server returns filtered products as JSON
+    10. renderProducts() rebuilds the grid
+
+
+5.3 checkout.js - Order Placement
+---------------------------------
+  PURPOSE: Submits the checkout form via AJAX.
+
+  KEY FUNCTION:
+
+    submitCheckout(e)
+      1. Prevents default form submission
+      2. Validates cart is not empty
+      3. Collects form data (address, payment method)
+      4. Sends POST /checkout/process as JSON
+      5. On success: redirects to /order-success
+      6. On error: shows alert with message
+
+  CSRF HANDLING:
+    Every POST includes X-CSRF-Token header.
+    Token comes from meta tag in HTML.
+    Server validates token before processing.
+
+
+5.4 product.js - Product Detail Page
+------------------------------------
+  PURPOSE: Handles gallery, quantity, and reviews on product page.
+
+  KEY FUNCTIONS:
+
+    initQuantityControls()
+      Sets up +/- buttons for quantity input.
+      Prevents quantity going below 1.
+
+    bindGallery()
+      Sets up thumbnail clicks to change main image.
+      Adds arrow navigation for image browsing.
+
+    bindBuyNowButtons()
+      Handles "Buy Now" click.
+      Adds to cart then redirects to checkout.
+
+    initReviews()
+      Loads reviews via AJAX.
+      Renders star ratings and review text.
+      Handles review form submission.
+
+
+5.5 admin.js - Admin Panel
+--------------------------
+  PURPOSE: Handles admin sidebar toggle and category icon preview.
+
+  The admin panel also uses Bootstrap for modals and tables.
+  admin-products.js handles product CRUD operations.
+  admin-orders.js handles order status updates.
+
+
+5.6 search.js - Search Suggestions
+----------------------------------
+  PURPOSE: Shows autocomplete suggestions as user types.
+
+  HOW IT WORKS:
+    1. User types in search box
+    2. After 300ms pause (debounce), fetch suggestions
+    3. GET /api/search/suggestions?q=laptop
+    4. Server returns matching product names
+    5. Dropdown appears below search box
+    6. Clicking suggestion goes to product page
+
+
+================================================================================
+SECTION 6 - BACKEND ARCHITECTURE (PHP MVC)
+================================================================================
+
+6.1 How Requests Enter The System
+---------------------------------
+Every single request goes through ONE file: public/index.php
+
+This is called the "Front Controller" pattern. Here is what happens:
+
+  STEP 1: Browser requests URL like /shop
+  STEP 2: .htaccess rewrites to index.php
+  STEP 3: index.php starts the session
+  STEP 4: index.php loads Composer autoloader
+  STEP 5: index.php loads config/env.php
+  STEP 6: index.php loads routes/web.php
+  STEP 7: Router->dispatch() is called
+  STEP 8: Router matches URL to a handler
+  STEP 9: Controller method is called
+  STEP 10: Controller gets data from Models
+  STEP 11: Controller renders View with data
+  STEP 12: HTML is sent to browser
+
+
+6.2 The Autoloader
+------------------
+PHP needs to know where class files are located.
+Composer generates an autoloader based on composer.json:
+
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/"
+    }
+  }
+
+This means:
+  App\Controllers\CartController -> app/Controllers/CartController.php
+  App\Models\Product             -> app/Models/Product.php
+  App\Core\Router                -> app/Core/Router.php
+
+
+6.3 How Responses Are Generated
+-------------------------------
+Controllers can respond in two ways:
+
+  HTML RESPONSE (for normal page views):
+    return $this->view('customer.shop', ['products' => $products]);
+    
+    The Views class renders shop.php with $products available.
+    HTML is echoed to the browser.
+
+  JSON RESPONSE (for AJAX requests):
+    return $this->json(['success' => true, 'data' => $products]);
+    
+    Sets Content-Type: application/json header.
+    Encodes data as JSON and echoes it.
+
+Controllers detect AJAX requests using:
+    $this->request->isAjax()
+
+This checks for X-Requested-With header or Accept: application/json.
+
+
+================================================================================
+SECTION 7 - CORE PHP CLASSES EXPLAINED
+================================================================================
+
+7.1 Router (app/Core/Router.php)
+--------------------------------
+  RESPONSIBILITY: Match URLs to handlers and execute them.
+
+  PROPERTIES:
+    $routes            <- Array of registered routes by HTTP method
+    $globalMiddleware  <- Middleware that runs on every request
+    $notFoundHandler   <- What to do when no route matches
+
+  METHODS:
+
+    get(string $path, $handler)
+      Register a route for GET requests.
+      Example: $router->get('/shop', 'ProductController@index');
+
+    post(string $path, $handler)
+      Register a route for POST requests.
+      Example: $router->post('/cart/add', 'CartController@add');
+
+    addRoute(string $method, string $path, $handler)
+      Internal method that stores route in $routes array.
+      Converts path to regex for matching.
+
+    addGlobalMiddleware(callable $middleware)
+      Add middleware that runs before every route.
+      Used for CSRF protection.
+
+    convertToRegex(string $path)
+      Converts /product/{slug} to regex pattern.
+      {slug} becomes a named capture group.
+
+    dispatch()
+      The main method called from index.php.
+      1. Gets current URL and method from $_SERVER
+      2. Runs global middleware
+      3. Loops through routes looking for match
+      4. Extracts URL parameters
+      5. Calls the matched handler
+
+    invokeHandler($handler, array $params)
+      Turns 'ProductController@show' into an actual method call.
+      Creates controller instance and calls the method.
+      Passes URL parameters as arguments.
+
+    handleNotFound()
+      Called when no route matches.
+      Returns 404 response.
+
+
+7.2 Controller (app/Core/Controller.php)
+----------------------------------------
+  RESPONSIBILITY: Base class that all controllers extend.
+
+  PROPERTIES:
+    $request   <- Instance of Request class
+    $response  <- Instance of Response class
+
+  METHODS:
+
+    __construct()
+      Called when controller is created.
+      Creates Request and Response objects.
+      Child controllers call parent::__construct().
+
+    view(string $view, array $data, bool $useLayout)
+      Render a view template.
+      Example: $this->view('customer.shop', ['products' => $products])
+
+    redirect(string $url)
+      Send browser to a different URL.
+      Example: $this->redirect('/login')
+
+    json(array $data, int $status)
+      Send JSON response.
+      Example: $this->json(['success' => true])
+
+    input(string $key, $default)
+      Get input from POST or GET.
+      Example: $this->input('email')
+
+    isAjax()
+      Check if request is AJAX.
+      Returns true/false.
+
+    db()
+      Get PDO database connection.
+      Returns the shared PDO instance.
+
+
+7.3 Model (app/Core/Model.php)
+------------------------------
+  RESPONSIBILITY: Base class for database operations.
+
+  PROPERTIES:
+    $pdo          <- Static PDO connection (shared)
+    $table        <- Database table name
+    $primaryKey   <- Primary key column (default: 'id')
+
+  METHODS:
+
+    getPDO()
+      Creates database connection if not exists.
+      Reads credentials from config/env.php.
+      Returns PDO instance.
+      Static method - can be called without instance.
+
+    query(string $sql, array $params)
+      Execute prepared statement.
+      Handles both named (:id) and positional (?) placeholders.
+      Returns PDOStatement for fetching results.
+
+    all()
+      Get all rows from the table.
+      Returns array of associative arrays.
+
+    find(int $id)
+      Get single row by primary key.
+      Returns array or null.
+
+    create(array $data)
+      Insert new row.
+      Returns the new ID.
+
+    update(int $id, array $data)
+      Update row by ID.
+      Returns true on success.
+
+    delete(int $id)
+      Delete row by ID.
+      Returns true on success.
+
+    where(string $column, $value)
+      Get rows where column equals value.
+      Returns array of matches.
+
+    select(...)
+      Flexible SELECT with joins, where, order, limit.
+      Returns array of rows.
+
+    paginate(...)
+      Get paginated results.
+      Returns array with data, total, current_page, last_page.
+
+
+7.4 Views (app/Core/Views.php)
+------------------------------
+  RESPONSIBILITY: Render PHP templates with data.
+
+  METHODS:
+
+    render(string $view, array $data, $layout)
+      Main rendering method.
+      Finds view file: customer.shop -> resources/views/customer/shop.php
+      Extracts data as variables.
+      Includes the view file.
+      Wraps in layout unless $layout is false.
+
+    escapeData(mixed $data)
+      Automatically escapes strings for XSS protection.
+      Arrays are escaped recursively.
+      Numbers and booleans pass through.
+
+    raw(mixed $value)
+      Output content without escaping.
+      USE CAREFULLY - only for trusted HTML.
+
+    partial(string $partial, array $data)
+      Include a smaller template piece.
+      Example: Views::partial('partials.flash')
+
+
+7.5 Middleware (app/Core/Middleware.php)
+----------------------------------------
+  RESPONSIBILITY: Check authentication and authorization.
+
+  METHODS:
+
+    ensureAuth()
+      Check if user is logged in.
+      Looks for $_SESSION['auth']['id'].
+      Returns true/false.
+
+    ensureAdmin()
+      Check if user is logged in AND is admin.
+      Checks $_SESSION['auth']['role'] === 'admin'.
+      Returns true/false.
+
+    ensureCustomer()
+      Check if user is logged in AND is customer.
+      Returns true/false.
+
+    guard(callable $check, callable $handler, string $redirectTo)
+      Wraps a route handler with authentication check.
+      If check fails, redirects with flash message.
+      If check passes, executes handler.
+
+    authorizeAdmin(string $redirectTo)
+      Called in controller constructor.
+      Immediately redirects if not admin.
+
+    userId()
+      Get current user's ID from session.
+      Returns int or null.
+
+    verifyCsrf()
+      Validate CSRF token on POST/PUT/DELETE.
+      Compares token from request to session.
+      Returns true or sends error response.
+
+    rateLimit(string $key, int $maxAttempts, int $decayMinutes)
+      Track request attempts.
+      Blocks if too many in time window.
+      Used for login/registration protection.
+
+
+7.6 Request (app/Core/Request.php)
+----------------------------------
+  RESPONSIBILITY: Clean interface to request data.
+
+  METHODS:
+
+    method()
+      Returns HTTP method: GET, POST, etc.
+
+    all()
+      Returns merged GET + POST + JSON data.
+
+    get(string $key, $default)
+      Get query string parameter.
+
+    post(string $key, $default)
+      Get POST body or JSON body parameter.
+
+    isAjax()
+      Check for AJAX request headers.
+
+
+7.7 Response (app/Core/Response.php)
+------------------------------------
+  RESPONSIBILITY: Send responses to browser.
+
+  METHODS:
+
+    status(int $code)
+      Set HTTP status code.
+      Example: $response->status(404)
+
+    redirect(string $url)
+      Send Location header and exit.
+      Browser navigates to new URL.
+
+    json(array $data, int $status)
+      Send JSON response with proper headers.
+      Encodes data and exits.
+
+
+================================================================================
+SECTION 8 - CONTROLLERS EXPLAINED
+================================================================================
+
+8.1 AuthController (Customer)
+-----------------------------
+  ROUTES:
+    GET  /register  -> showRegister()
+    POST /register  -> register()
+    GET  /login     -> showLogin()
+    POST /login     -> login()
+    POST /logout    -> logout()
+
+  showRegister()
+    Checks if already logged in.
+    Renders customer/register.php form.
+
+  register()
+    Validates input (name, email, password).
+    Creates new user with hashed password.
+    Redirects to login page.
+    DOES NOT auto-login (security best practice).
+
+  showLogin()
+    Checks if already logged in.
+    Renders customer/login.php form.
+
+  login()
+    Rate limits by IP and email.
+    Validates credentials.
+    Verifies password with password_verify().
+    Regenerates session ID (prevents session fixation).
+    Sets $_SESSION['auth'] with user data.
+    Merges guest cart with user cart.
+    Redirects to intended page or home.
+
+  logout()
+    Clears session data.
+    Destroys session cookie.
+    Destroys session.
+    Redirects to home.
+
+
+8.2 CartController
+------------------
+  ROUTES:
+    POST /cart/add     -> add()
+    POST /cart/update  -> update()
+    POST /cart/remove  -> remove()
+    GET  /cart/count   -> count()
+    GET  /cart/items   -> items()
+
+  All methods return JSON for AJAX consumption.
+
+  add()
+    Validates product exists and has stock.
+    Checks if item already in cart (updates quantity).
+    Calculates effective price (discount if applicable).
+    Updates session cart.
+    Syncs to database if user logged in.
+    Returns updated cart data.
+
+  update()
+    Finds item in cart.
+    Validates new quantity against stock.
+    Updates quantity and subtotal.
+    Returns updated totals.
+
+  remove()
+    Removes item from session cart.
+    Syncs to database.
+    Returns updated count and total.
+
+  items()
+    Returns full cart as JSON.
+    Used to populate cart drawer.
+
+
+8.3 CheckoutController
+----------------------
+  ROUTES:
+    GET  /checkout          -> index()
+    POST /checkout/process  -> process()
+    GET  /order-success     -> success()
+
+  All routes protected - require customer login.
+
+  index()
+    Checks user has complete profile.
+    Gets cart items and calculates total.
+    Renders checkout.php form.
+
+  process()
+    Rate limits checkout attempts.
+    Validates cart is not empty.
+    Validates shipping address form.
+    Re-validates each product (stock, price, status).
+    Creates order with items in transaction.
+    Decrements product inventory.
+    Clears user's cart.
+    Creates notification for user.
+    Redirects to success page.
+
+
+8.4 ProductController (Customer)
+--------------------------------
+  ROUTES:
+    GET /shop              -> index()
+    GET /product/{slug}    -> show()
+    GET /category/{slug}   -> category()
+    GET /search            -> search()
+
+  index()
+    Parses filter parameters (search, category, price, rating, sort).
+    Builds WHERE clause for query.
+    Paginates results.
+    Attaches ratings to products.
+    Returns JSON for AJAX or renders shop.php.
+
+  show()
+    Finds product by slug.
+    Gets product images.
+    Gets related products from same category.
+    Renders product.php.
+
+  category()
+    Finds category by slug.
+    Gets products in that category.
+    Renders shop.php with category filter active.
+
+
+8.5 Admin Controllers
+---------------------
+All admin controllers:
+  - Extend Controller
+  - Call Middleware::authorizeAdmin() in constructor
+  - This ensures only admins can access
+
+  Admin\DashboardController
+    Queries aggregate stats from database.
+    Gets recent orders.
+    Renders admin/dashboard.php.
+
+  Admin\ProductController
+    Full CRUD for products.
+    Handles multi-image uploads.
+    Validates unique slugs.
+
+  Admin\CategoryController
+    CRUD for categories.
+    Prevents deletion if products exist.
+
+  Admin\OrderController
+    Lists orders with pagination.
+    Shows order details.
+    Updates order status and payment status.
+
+
+================================================================================
+SECTION 9 - MODELS EXPLAINED
+================================================================================
+
+9.1 User Model
+--------------
+  TABLE: users
+  COLUMNS: id, name, email, password, role, status, phone, address, created_at
+
+  METHODS:
+
+    findByEmail(string $email)
+      Looks up user by email (case-insensitive).
+      Returns user array without password.
+
+    authenticate(string $email, string $password)
+      Finds user by email.
+      Verifies password with password_verify().
+      Checks account is active.
+      Returns user data or null.
+
+    hashPassword(string $password)
+      Uses password_hash() with PASSWORD_DEFAULT.
+      Returns secure hash.
+
+    createUser(array $data)
+      Normalizes email to lowercase.
+      Hashes password if provided.
+      Inserts and returns new ID.
+
+
+9.2 Product Model
+-----------------
+  TABLE: products
+  COLUMNS: id, name, slug, description, category_id, price, discount_price,
+           quantity, sku, image, featured, status, created_at
+
+  STATIC METHODS:
+
+    effectivePrice(array $product)
+      Returns discount_price if valid, else regular price.
+      Handles null/empty discount values.
+
+    hasDiscount(array $product)
+      Returns true if discount_price exists and is lower than price.
+
+    shortDescription(string $text, int $max)
+      Truncates description for card display.
+      Adds ellipsis if too long.
+
+    resolveImageUrl(string $candidate)
+      Converts image path to proper URL.
+      Checks if file exists in uploads or assets.
+
+  INSTANCE METHODS:
+
+    attachRatings(array &$products)
+      Adds avg_rating and review_count to product array.
+      Uses single query for efficiency.
+
+    findBySlug(string $slug)
+      Gets product by URL slug.
+
+    getFeatured(int $limit)
+      Gets featured products for homepage.
+
+    getMostSold(int $limit)
+      Gets top-selling products by order quantity.
+
+
+9.3 Order Model
+---------------
+  TABLE: orders
+  COLUMNS: id, user_id, order_number, total_amount, payment_method,
+           payment_status, order_status, shipping_address, created_at
+
+  METHODS:
+
+    generateOrderNumber()
+      Creates unique order number: ORD-20260129-A1B2C3D4
+      Checks for collisions.
+
+    createWithItems(array $orderData, array $items)
+      Creates order and order_items in transaction.
+      Locks products with FOR UPDATE (prevents race conditions).
+      Validates stock before decrementing.
+      Rolls back if any error occurs.
+
+    getByUserId(int $userId)
+      Gets all orders for a customer.
+
+
+9.4 Category Model
+------------------
+  TABLE: categories
+  COLUMNS: id, name, slug, description, icon, status, created_at
+
+  METHODS:
+
+    getActive()
+      Gets categories with status = 'active'.
+      Used for filter dropdowns.
+
+    findBySlug(string $slug)
+      Gets category by URL slug.
+
+    getWithProductCount()
+      Gets categories with count of products.
+      Used for admin dashboard.
+
+
+================================================================================
+SECTION 10 - ROUTING SYSTEM
+================================================================================
+
+10.1 How Routes Are Registered
+------------------------------
+In routes/web.php:
+
+  $router = new Router();
+
+  $router->get('/shop', 'ProductController@index');
+  $router->post('/cart/add', 'CartController@add');
+
+The first parameter is the URL pattern.
+The second is the handler: 'ControllerName@methodName'.
+
+
+10.2 Dynamic Parameters
+-----------------------
+Curly braces capture URL segments:
+
+  $router->get('/product/{slug}', 'ProductController@show');
+
+When user visits /product/laptop-pro:
+  - Router extracts slug = 'laptop-pro'
+  - Calls ProductController->show('laptop-pro')
+
+
+10.3 Route Guards (Middleware)
+------------------------------
+Protected routes use guard functions:
+
+  $adminGuard = function(callable $handler) {
+    return function(...$args) use ($handler) {
+      return Middleware::guard(
+        fn() => Middleware::ensureAdmin(),
+        function() use ($handler, $args) { return $handler(...$args); },
+        '/admin/login'
+      );
+    };
+  };
+
+  $router->get('/admin/products', $adminGuard(function() {
+    return (new ProductController())->index();
+  }));
+
+This wraps the handler so it:
+  1. Checks if user is admin
+  2. If yes, executes the handler
+  3. If no, redirects to /admin/login
+
+
+10.4 Global Middleware
+----------------------
+CSRF protection runs on every POST:
+
+  $router->addGlobalMiddleware([Middleware::class, 'verifyCsrf']);
+
+This calls Middleware::verifyCsrf() before any route handler.
+If CSRF token is invalid, request is blocked.
+
+
+10.5 404 Handling
+-----------------
+When no route matches:
+
+  $router->setNotFoundHandler(function() {
+    return Views::render('errors.404', [], false);
+  });
+
+
+================================================================================
+SECTION 11 - AUTH, SESSION, AND MIDDLEWARE
+================================================================================
+
+11.1 Session Structure
+----------------------
+When a customer logs in, session contains:
+
+  $_SESSION['auth'] = [
+    'id' => 123,
+    'email' => 'user@example.com',
+    'role' => 'customer'
+  ];
+  $_SESSION['user_name'] = 'John Doe';
+  $_SESSION['last_activity'] = 1706500000;
+
+When an admin logs in, role is 'admin'.
+
+
+11.2 Role-Based Access Control
+------------------------------
+Controllers check roles using Middleware:
+
+  CUSTOMER ROUTES:
+    if (!Middleware::ensureCustomer()) {
+      $this->redirect('/login');
+    }
+
+  ADMIN ROUTES:
+    Middleware::authorizeAdmin('/admin/login');
+
+The ensureCustomer() method checks:
+  - Session has auth array
+  - Auth has id and role
+  - Role equals 'customer'
+
+
+11.3 Flash Messages
+-------------------
+Flash messages appear once then disappear:
+
+  SETTING A FLASH (in controller):
+    Session::flash('success', 'Product added!');
+    $this->redirect('/shop');
+
+  GETTING A FLASH (in view):
+    $success = Session::getFlash('success');
+    if ($success) {
+      echo "<div class='alert'>$success</div>";
+    }
+
+The getFlash() method returns the value and deletes it.
+
+
+11.4 CSRF Protection
+--------------------
+Cross-Site Request Forgery protection:
+
+  IN HTML FORM:
+    <input type="hidden" name="_token" value="<?= csrf_token() ?>">
+
+  IN AJAX REQUEST:
+    headers: { 'X-CSRF-Token': getCsrfToken() }
+
+  ON SERVER:
+    Middleware::verifyCsrf() compares submitted token to session.
+    Uses hash_equals() for timing-attack safety.
+
+
+11.5 Session Security Features
+------------------------------
+  - Session ID regenerated on login (prevents fixation)
+  - HttpOnly cookies (JavaScript cannot access)
+  - SameSite=Lax (prevents CSRF from other sites)
+  - 30-minute inactivity timeout
+  - Secure flag when HTTPS detected
+
+
+================================================================================
+SECTION 12 - END-TO-END REAL FLOWS
+================================================================================
+
+12.1 Customer Registration to Order
+------------------------------------
+
+  STEP 1: Customer visits /register
+    - Router matches GET /register
+    - AuthController@showRegister called
+    - Renders register.php form
+
+  STEP 2: Customer submits form
+    - Browser POSTs to /register
+    - Router matches POST /register
+    - AuthController@register called
+    - Validator checks input
+    - User model creates user with hashed password
+    - Redirect to /login with success flash
+
+  STEP 3: Customer logs in
+    - Visits /login, submits credentials
+    - AuthController@login called
+    - User model authenticates
+    - Session created with user data
+    - Guest cart merged with user cart
+    - Redirect to home
+
+  STEP 4: Customer browses products
+    - Visits /shop
+    - ProductController@index called
+    - Products queried with pagination
+    - shop.php rendered with product cards
+
+  STEP 5: Customer adds to cart
+    - Clicks "Add to Cart" button
+    - cart.js sends POST /cart/add (AJAX)
+    - CartController@add validates product
+    - Adds to session and syncs to database
+    - Returns JSON with updated cart
+    - cart.js renders cart drawer
+
+  STEP 6: Customer checks out
+    - Clicks "Checkout" in cart
+    - Visits /checkout (protected route)
+    - CheckoutController@index checks auth
+    - Renders checkout.php with cart summary
+
+  STEP 7: Customer places order
+    - Fills shipping form, clicks "Place Order"
+    - checkout.js sends POST /checkout/process
+    - CheckoutController@process validates
+    - Order created in transaction
+    - Inventory decremented
+    - Cart cleared
+    - Redirect to /order-success
+
+  STEP 8: Customer views order
+    - order-success.php shows confirmation
+    - Order appears in /profile orders list
+
+
+12.2 Admin Product Management
+-----------------------------
+
+  STEP 1: Admin logs in
+    - Visits /admin/login
+    - Submits credentials
+    - Admin\AuthController@login validates
+    - Session created with role = 'admin'
+    - Redirect to /admin/dashboard
+
+  STEP 2: Admin views products
+    - Clicks "Products" in sidebar
+    - Visits /admin/products
+    - Admin\ProductController@index called
+    - Products queried with pagination
+    - admin/products.php rendered
+
+  STEP 3: Admin creates product
+    - Clicks "Add Product"
+    - Visits /admin/products/create
+    - Fills form with name, price, images
+    - Submits form (AJAX)
+    - Admin\ProductController@store validates
+    - Images uploaded and stored
+    - Product created in database
+    - Redirect to products list
+
+  STEP 4: Admin updates order
+    - Visits /admin/orders
+    - Clicks an order row
+    - Order details modal opens
+    - Changes status to "shipped"
+    - AJAX updates order_status
+    - Customer gets notification
+
+
+12.3 Review and Rating Flow
+---------------------------
+
+  STEP 1: Customer views product
+    - Visits /product/laptop-pro
+    - ProductController@show renders page
+    - product.js loads reviews via AJAX
+
+  STEP 2: Reviews loaded
+    - GET /products/123/reviews
+    - ReviewsController@index queries reviews
+    - Returns JSON with ratings and text
+
+  STEP 3: Customer submits review
+    - Fills rating stars and comment
+    - POST /reviews (protected)
+    - ReviewsController@store validates
+    - Checks customer purchased product
+    - Creates review in database
+    - Returns updated reviews list
+
+
+================================================================================
+SECTION 13 - BEGINNER PITFALLS IN THIS PROJECT
+================================================================================
+
+13.1 Common Confusion Points
+----------------------------
+
+  "Where does $products come from in the view?"
+    Controller extracts data array:
+      $this->view('shop', ['products' => $products]);
+    Views::render() calls extract() which creates $products variable.
+
+  "Why does the cart work without page reload?"
+    JavaScript (cart.js) handles all cart operations.
+    Uses fetch() to make AJAX requests.
+    Updates DOM directly without server re-rendering HTML.
+
+  "How does the server know I'm logged in?"
+    PHP sessions. On every request, session_start() loads
+    $_SESSION from file. Your auth data persists there.
+
+  "What's the difference between redirect and return view?"
+    redirect() sends HTTP 302, browser makes NEW request.
+    view() renders HTML and sends it in CURRENT response.
+
+
+13.2 Why Things Feel Magical
+----------------------------
+
+  AUTOLOADING:
+    You never see "require 'User.php'".
+    Composer autoloader does this automatically.
+    Based on class name: App\Models\User -> app/Models/User.php
+
+  CSRF TOKEN GENERATION:
+    csrf_token() creates token on first call.
+    Same token returned on subsequent calls within session.
+    Stored in $_SESSION['_token'].
+
+  PASSWORD HASHING:
+    password_hash() uses bcrypt by default.
+    Each password gets unique salt.
+    password_verify() handles comparison.
+
+  ROUTING:
+    URL /product/laptop becomes ProductController->show('laptop').
+    Router uses regex to match and extract parameters.
+
+
+13.3 What NOT To Change Blindly
+-------------------------------
+
+  1. SESSION HANDLING in index.php
+     Misconfiguration can break auth entirely.
+     Cookie params affect security.
+
+  2. CSRF MIDDLEWARE in web.php
+     Removing this opens security holes.
+     Every POST needs token verification.
+
+  3. PASSWORD HASHING in User model
+     Never store plain passwords.
+     Never change hashing algorithm without migration.
+
+  4. SQL QUERY BINDING
+     Never concatenate user input into SQL.
+     Always use :placeholders and params.
+
+
+13.4 Where Bugs Usually Happen
+------------------------------
+
+  1. AJAX RESPONSE HANDLING
+     JavaScript expects JSON, server returns HTML.
+     Check response Content-Type header.
+
+  2. SESSION NOT STARTED
+     Code accesses $_SESSION without session_start().
+     Session helper methods handle this, but direct access may fail.
+
+  3. FILE UPLOAD PATHS
+     Relative paths break in different contexts.
+     Always use __DIR__ based absolute paths.
+
+  4. DATABASE CONNECTION
+     Wrong credentials in env.php.
+     Check error logs in storage/logs/app.log.
+
+
+================================================================================
+SECTION 14 - HOW TO READ AND DEBUG THIS PROJECT
+================================================================================
+
+14.1 Where To Start When Stuck
+------------------------------
+
+  PROBLEM: Page shows blank or error
+    CHECK: storage/logs/app.log
+    CHECK: Browser developer console for JS errors
+    CHECK: Network tab for failed requests
+
+  PROBLEM: Feature not working
+    START: routes/web.php - find the route
+    THEN: Controller method - read the logic
+    THEN: Model method - check database query
+    THEN: View file - check data binding
+
+  PROBLEM: Cart not updating
+    CHECK: Browser Network tab for AJAX request
+    CHECK: Response JSON for error messages
+    CHECK: CartController methods for validation
+
+
+14.2 How To Trace A Bug
+-----------------------
+
+  EXAMPLE: "Add to cart shows error"
+
+  STEP 1: Open browser dev tools (F12)
+  STEP 2: Click Network tab
+  STEP 3: Click "Add to Cart"
+  STEP 4: Find the /cart/add request
+  STEP 5: Check Status (should be 200)
+  STEP 6: Check Response (should be JSON)
+  STEP 7: If error, read message field
+  STEP 8: Search controller for that message
+  STEP 9: Add error_log() to trace data
+  STEP 10: Check storage/logs/app.log
+
+
+14.3 Adding Console Logging
+---------------------------
+
+  PHP (server-side):
+    error_log('Debug: product_id = ' . $productId);
+    // Output goes to storage/logs/app.log
+
+  JavaScript (client-side):
+    console.log('Cart data:', cart);
+    // Output goes to browser console
+
+
+14.4 How To Safely Add Features
+-------------------------------
+
+  1. PLAN THE DATA FLOW
+     What data do you need?
+     Where does it come from?
+     Where does it go?
+
+  2. START WITH THE ROUTE
+     Add route in web.php
+     Create controller method stub
+     Test that route works (return JSON)
+
+  3. BUILD THE MODEL
+     Add query methods needed
+     Test with simple data
+
+  4. BUILD THE CONTROLLER
+     Add business logic
+     Handle validation
+     Return proper response
+
+  5. BUILD THE VIEW/JS
+     Add HTML elements
+     Add JavaScript handlers
+     Connect to backend
+
+
+14.5 How To Explain This Project
+--------------------------------
+
+  "This is a PHP MVC e-commerce application.
+
+  The ROUTER receives all requests and directs them to controllers.
+  
+  CONTROLLERS handle the request logic - they validate input,
+  call models for data, and return views or JSON.
+  
+  MODELS talk to the MySQL database using PDO prepared statements.
+  They encapsulate all SQL queries.
+  
+  VIEWS are PHP templates that receive data and output HTML.
+  
+  JAVASCRIPT handles interactive features like the cart drawer,
+  filtering, and form submissions via AJAX.
+  
+  SESSION-based authentication tracks logged-in users.
+  CSRF tokens protect against cross-site attacks.
+  MIDDLEWARE guards protect admin and checkout routes."
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================
+
+This document covers the core architecture and flow of your e-commerce project.
+Re-read sections as needed when debugging or adding features.
+
+Remember:
+  - Every request starts at public/index.php
+  - Router matches URL to controller
+  - Controller uses model for data
+  - Controller renders view or returns JSON
+  - JavaScript handles dynamic updates
+
+When stuck, trace the flow:
+  URL -> Route -> Controller -> Model -> Database -> Model -> Controller -> View
+
+Good luck with your interviews and future development!
+
+================================================================================
