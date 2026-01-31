@@ -12,4 +12,4 @@ config/env.php
 .DS_Store
 Thumbs.db
 *.log
-project-deep-dive.txt
+/project-deep-dive.txt
